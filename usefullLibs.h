@@ -1,0 +1,13 @@
+//
+// Created by kuba on 4/17/26.
+//
+
+#ifndef CPP_3D_ENGINE_RASTERIZER_USEFULLLIBS_H
+#define CPP_3D_ENGINE_RASTERIZER_USEFULLLIBS_H
+
+
+class usefullLibs {
+};
+
+
+#endif //CPP_3D_ENGINE_RASTERIZER_USEFULLLIBS_H
