@@ -52,7 +52,7 @@ private:
 
 public:
 
-    Vector3D_Double(simple3D_Pos_Double const &impPos) {
+    Vector3D_Double(simple3D_Pos_Double impPos) {
         this->myPos = impPos;
         this->absoluteLenght = std::sqrt((myPos.x * myPos.x) + (myPos.y * myPos.y) + (myPos.z * myPos.z));
     }
@@ -70,7 +70,7 @@ public:
         return (quickPos.x * myPos.x) + (quickPos.y * myPos.y) + (quickPos.z * myPos.z);
     }
 
-    void setVector(simple3D_Pos_Double const &impPos) {
+    void setVector(simple3D_Pos_Double impPos) {
         myPos.x = impPos.x;
         myPos.y = impPos.y;
         myPos.z = impPos.z;
@@ -169,6 +169,61 @@ struct Pseudo3DColor {
         return finalColor;
     }
 };
+
+
+class Position3D_Double {
+private:
+    simple3D_Pos_Double myPos;
+
+public:
+
+    Position3D_Double(simple3D_Pos_Double impPos) {
+        this->myPos.x = impPos.x;
+        this->myPos.y = impPos.y;
+        this->myPos.z = impPos.z;
+    }
+
+    simple3D_Pos_Double getPos() {
+        return myPos;
+    }
+
+    simple3D_Pos_Double& getPosRef() {
+        return myPos;
+    }
+
+    void setPosition(simple3D_Pos_Double impPos) {
+        myPos.x = impPos.x;
+        myPos.y = impPos.y;
+        myPos.z = impPos.z;
+    }
+
+    Vector3D_Double makeAVector(Position3D_Double &secondPos) {
+        simple3D_Pos_Double quickPos = secondPos.getPosRef();
+
+        return Vector3D_Double(simple3D_Pos_Double(quickPos.x - myPos.x,quickPos.y - myPos.y,quickPos.z - myPos.z));
+    }
+
+    Vector3D makeA2DVector(Position3D_Double &secondPos) {
+        simple3D_Pos_Double quickPos = secondPos.getPosRef();
+        return Vector3D(x - secondPos.x, y - secondPos.y, 0);
+    }
+
+
+    Position3D_Double changedBy(double impX, double impY, double impZ) {
+        return Position3D(x + impX, y + impY, z + impZ);
+    }
+
+    Position3D_Double makeIntoScreensCord(int fov) {
+        if (myPos.z > 0.1) {
+            double radiansFOV = fov * (M_PI / 180);
+            double numberAmpX = ((MonitorWidth / 2) / (std::tan(radiansFOV/2)));
+            double numberAmpY = ((MonitorHeight / 2) / (std::tan(radiansFOV/2)));
+            return Position3D(std::round(((x/z) * numberAmpX) + (MonitorWidth/2)), std::round(((y/z) * numberAmpY) + (MonitorHeight/2)), z);
+        }
+        return Position3D(-1, -1, -10);
+    }
+};
+
 
 
 struct Position3D {
