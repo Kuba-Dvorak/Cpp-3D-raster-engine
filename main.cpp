@@ -32,6 +32,64 @@ int getRandomInt(int min, int max) {
     return returnableValue;
 }
 
+
+struct simple3D_Pos_Double {
+    double x, y, z;
+
+    simple3D_Pos_Double(double x = 0, double y = 0, double z = 0) {
+        this->x = x;
+        this->y = y;
+        this->z = z;
+    }
+};
+
+
+
+class Vector3D_Double {
+private:
+    double absoluteLenght;
+    simple3D_Pos_Double myPos;
+
+public:
+
+    Vector3D_Double(simple3D_Pos_Double const &impPos) {
+        this->myPos = impPos;
+        this->absoluteLenght = std::sqrt((myPos.x * myPos.x) + (myPos.y * myPos.y) + (myPos.z * myPos.z));
+    }
+
+    simple3D_Pos_Double getVec() {
+        return myPos;
+    }
+
+    simple3D_Pos_Double& getVecRef() {
+        return myPos;
+    }
+
+    double dotProduct(Vector3D_Double &secondVec) {
+        simple3D_Pos_Double quickPos = secondVec.getVecRef();
+        return (quickPos.x * myPos.x) + (quickPos.y * myPos.y) + (quickPos.z * myPos.z);
+    }
+
+    void setVector(simple3D_Pos_Double const &impPos) {
+        myPos.x = impPos.x;
+        myPos.y = impPos.y;
+        myPos.z = impPos.z;
+        absoluteLenght = std::sqrt((myPos.x * myPos.x) + (myPos.y * myPos.y) + (myPos.z * myPos.z));
+    }
+
+    double absoluteValue() {
+        return absoluteLenght;
+    }
+
+    double crossProduct2D(Vector3D_Double &secondVec) {
+        simple3D_Pos_Double quickPos = secondVec.getVecRef();
+        return myPos.x * quickPos.y - myPos.y * quickPos.x;
+    }
+};
+
+
+
+
 struct Vector3D {
     double x,y,z;
 
@@ -70,6 +128,22 @@ struct SimpleColor {
         this->blue = blue;
         this->green = green;
         this->transp = transp;
+    }
+    uint32_t convertToBinary() {
+        uint32_t finalColor = 0x00000000;
+        finalColor |= transp << 24;
+        finalColor |= red << 16;
+        finalColor |= green << 8;
+        finalColor |= blue;
+        return finalColor;
+    }
+};
+
+
+struct ZBuffer {
+    double zPos;
+    ZBuffer(double impZPos) {
+        this->zPos = impZPos;
     }
 };
 
@@ -201,6 +275,7 @@ struct ScreenPolygon {
     void drawOutPolygon(Pseudo3DColor* colorsBuffer, int screenWidth,int screenHeight, SimpleColor polygonCol, bool outLine) {
         std::array<int, 4> minsAmaxs = minsAndMaxs(screenWidth, screenHeight);
         std::array<double, 2> gradiant = getGradiants(points[0], points[1], points[2]);
+        double outLineBoundary = (minsAmaxs[0] - minsAmaxs[2]) * (minsAmaxs[1] - minsAmaxs[3]) * 0.01;
 
         for (int yPos = minsAmaxs[3]; yPos < minsAmaxs[1]; yPos += 1) {
             for (int xPos = minsAmaxs[2]; xPos < minsAmaxs[0]; xPos += 1) {
@@ -228,7 +303,7 @@ struct ScreenPolygon {
                 }
 
                 if (outLine) {
-                    if (abCrossProd < 100 || bcCrossProd < 100 || caCrossProd < 100) {
+                    if (abCrossProd < outLineBoundary || bcCrossProd < outLineBoundary || caCrossProd < outLineBoundary) {
                         pixelColor.blue = 0;
                         pixelColor.green = 0;
                         pixelColor.red = 0;
