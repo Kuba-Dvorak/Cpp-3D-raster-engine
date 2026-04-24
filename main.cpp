@@ -630,7 +630,7 @@ public:
             myPos.myPos.z -= speed;
         }
         if (state[SDL_SCANCODE_DOWN]) {
-            if (values.angleZ >= -1) {
+            if (values.angleZ >= -1.4) {
                 values.changeAngleZ(-0.05);
                 valuesUp.changeAngleZ(-0.05);
                 
