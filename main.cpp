@@ -144,6 +144,12 @@ public:
         myPos.z = impPos.z;
     }
 
+    void changePosition(simple3D_Pos_Double impPos) {
+        myPos.x += impPos.x;
+        myPos.y += impPos.y;
+        myPos.z += impPos.z;
+    }
+
     Vector3D_Double makeAVector(Position3D_Double &secondPos) {
         return Vector3D_Double(simple3D_Pos_Double(secondPos.myPos.x - myPos.x,secondPos.myPos.y - myPos.y,secondPos.myPos.z - myPos.z));
     }
@@ -393,8 +399,6 @@ public:
         if (blockyfacion <= 1) {
             blockyfacion = 1;
         }
-
-        std::cout << blockyfacion << std::endl;
 
         if (xMajority) {
             bool leftRight = false;
@@ -715,6 +719,12 @@ public:
         position.myPos = changePos;
     }
 
+    void changePos(simple3D_Pos_Double changePos) {
+        position.myPos.x += changePos.x;
+        position.myPos.y += changePos.y;
+        position.myPos.z += changePos.z;
+    }
+
     Position3D_Double getRelativePos(Vector3D_Double &headingVec, Vector3D_Double &upVector, Vector3D_Double &rightVector, Position3D_Double &headingOrigin) {
 
         Vector3D_Double vectorOS = headingOrigin.makeAVector(position);
@@ -738,6 +748,7 @@ private:
     SimpleColor outlineCol;
     simple3D_Pos_Double objectSize;
     std::vector<Vector3D_Double> vectorsFromCentre;
+    std::vector<simple3D_Pos_Double> originalPoses;
 
 public:
 
@@ -748,29 +759,45 @@ public:
         this->numsOfFaces = numFaces;
         this->numsOfPoints = numOfPoints;
         this->centrePoint = centre;
-        this->objectSize = impSize;
+        this->objectSize.x = std::sqrt(impSize.x)/64;
+        this->objectSize.y = std::sqrt(impSize.y)/64;
+        this->objectSize.z = std::sqrt(impSize.z)/64;
         this->links = impLinks;
 
         Position3D_Double centrePointPosition = Position3D_Double(centrePoint);
 
         for (int i = 0; i < numOfPoints; i += 1) {
             this->points.push_back(points[i]);
+            this->originalPoses.push_back(points[i].getPos().myPos);
 
             Position3D_Double onePos = points[i].getPos();
             this->vectorsFromCentre.push_back(centrePointPosition.makeAUnitVector(onePos));
         }
     }
 
-    void rotates(double angleY, double angleZ, double angleX) {
-        double cosAngle = std::cos(angleY);
-        double sinAngle = std::sin(angleY);
+    void rotates(double angleYZ, double angleXZ, double angleXY) {
+        double cosAngleYZ = std::cos(angleYZ);
+        double sinAngleYZ = std::sin(angleYZ);
+        double cosAngleXY = std::cos(angleXY);
+        double sinAngleXY = std::sin(angleXY);
+        double cosAngleXZ = std::cos(angleXZ);
+        double sinAngleXZ = std::sin(angleXZ);
 
         for (int i = 0; i < numsOfPoints; i += 1) {
+            // 1. XY rotation, 2. XZ rotation, 3. YZ rotation
 
-            simple3D_Pos_Double diff = simple3D_Pos_Double();
-
+            Position3D_Double onePos = points[i].getPos();
+            simple3D_Pos_Double centrePointCentric = simple3D_Pos_Double(onePos.myPos.x - centrePoint.x, onePos.myPos.y - centrePoint.y, onePos.myPos.z - centrePoint.z);
+            originalPoses[i] = simple3D_Pos_Double(
+                centrePoint.x + ((centrePointCentric.x * cosAngleXY - centrePointCentric.y * sinAngleXY) * cosAngleXZ - centrePointCentric.z * sinAngleXZ),
+                centrePoint.y + ((centrePointCentric.y * cosAngleXY + centrePointCentric.x * sinAngleXY) * cosAngleYZ - centrePointCentric.z * sinAngleYZ),
+                centrePoint.z + ((centrePointCentric.z * cosAngleXZ + centrePointCentric.x * sinAngleXZ) * cosAngleYZ + centrePointCentric.y * sinAngleYZ));
+            points[i].setPos(originalPoses[i]);
         }
+    }
 
+    simple3D_Pos_Double getSize() {
+        return objectSize;
     }
 
     simple3D_Pos_Double getPos() {
@@ -778,7 +805,6 @@ public:
     }
 
     void setPos(simple3D_Pos_Double changePos) {
-
         centrePoint = changePos;
 
         for (int i = 0; i < numsOfPoints; i += 1) {
@@ -786,11 +812,35 @@ public:
         }
     }
 
+    void changePos(simple3D_Pos_Double changePos) {
+        centrePoint.x += changePos.x;
+        centrePoint.y += changePos.y;
+        centrePoint.z += changePos.z;
+
+        for (int i = 0; i < numsOfPoints; i += 1) {
+            points[i].changePos(changePos);
+        }
+    }
+
     void setSize(simple3D_Pos_Double newSize) {
+        objectSize = newSize;
+        for (int i = 0; i < numsOfPoints; i += 1) {
+            simple3D_Pos_Double oneVec = vectorsFromCentre[i].getVec();
+            simple3D_Pos_Double onePos = originalPoses[i];
+
+            points[i].setPos(simple3D_Pos_Double( onePos.x + (oneVec.x * objectSize.x), onePos.y + (oneVec.y * objectSize.y), onePos.z + (oneVec.z * objectSize.z)));
+        }
+    }
+
+    void changeSize(simple3D_Pos_Double newSize) {
+        objectSize.x += newSize.x;
+        objectSize.y += newSize.y;
+        objectSize.z += newSize.z;
         for (int i = 0; i < numsOfPoints; i += 1) {
             simple3D_Pos_Double oneVec =  vectorsFromCentre[i].getVec();
-            
-            points[i].setPos(simple3D_Pos_Double(oneVec.x * newSize.x, oneVec.y * newSize.y, oneVec.z * newSize.z));
+            simple3D_Pos_Double onePos = originalPoses[i];
+
+            points[i].setPos(simple3D_Pos_Double( onePos.x + (oneVec.x * objectSize.x), onePos.y + (oneVec.y * objectSize.y), onePos.z + (oneVec.z * objectSize.z)));
         }
     }
 
@@ -1040,7 +1090,7 @@ int main(int argc, char* argv[]) {
     kostky.push_back(createCubePoints(simple3D_Pos_Double(2,15,13), simple3D_Pos_Double(2,3,1), SimpleColor(250,0,0), SimpleColor(0, 0, 0), false));
     kostky.push_back(createCubePoints(simple3D_Pos_Double(12,15,13), simple3D_Pos_Double(2,3,3), SimpleColor(250,120,0), SimpleColor(0, 0, 0), false));
 
-    double renderDistance = 400;
+    double renderDistance = 800;
 
     uint32_t* nasPixelBuffer;
     double* zBuffer = nullptr;
@@ -1065,7 +1115,23 @@ int main(int argc, char* argv[]) {
                     running = false;
                 }
                 if (event.key.keysym.sym == SDLK_j) {
-                    running = false;
+                    kostky[getRandomInt(0,5)].rotates(0,0.5,0);
+                }
+                if (event.key.keysym.sym == SDLK_i) {
+                    kostky[getRandomInt(0,5)].rotates(0,-0.5,0);
+                }
+                if (event.key.keysym.sym == SDLK_k) {
+                    kostky[getRandomInt(0,5)].rotates(0,0,0.5);
+                }
+                if (event.key.keysym.sym == SDLK_l) {
+                    kostky[getRandomInt(0,5)].rotates(0,0,-0.5);
+                }
+                if (event.key.keysym.sym == SDLK_m) {
+                    kostky[getRandomInt(0,5)].rotates(0.5
+                        ,0,0);
+                }
+                if (event.key.keysym.sym == SDLK_n) {
+                    kostky[getRandomInt(0,5)].rotates(-0.5,0,0);
                 }
             }
         }
