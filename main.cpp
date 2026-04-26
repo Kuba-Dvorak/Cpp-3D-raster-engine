@@ -9,6 +9,8 @@
 #include <algorithm>
 #include <array>
 #include <functional>
+#include <thread>
+#include <mutex>
 
 #define MonitorHeight 1440
 #define MonitorWidth 2560
@@ -50,11 +52,9 @@ struct simple3D_Pos_Double {
 
 
 class Vector3D_Double {
-private:
+public:
     double absoluteLenght;
     simple3D_Pos_Double myPos;
-
-public:
 
     Vector3D_Double(simple3D_Pos_Double impPos) {
         this->myPos = impPos;
@@ -154,11 +154,11 @@ public:
         return Vector3D_Double(simple3D_Pos_Double(secondPos.myPos.x - myPos.x,secondPos.myPos.y - myPos.y,secondPos.myPos.z - myPos.z));
     }
     
-    Vector3D_Double makeAUnitVector(Position3D_Double &secondPos) {
+    Vector3D_Double makeAUnitVector(Position3D_Double secondPos) {
         double distance = std::sqrt(std::pow(myPos.x - secondPos.myPos.x, 2) + std::pow(myPos.y - secondPos.myPos.y, 2) + std::pow(myPos.z - secondPos.myPos.z, 2));
 
         if (distance < 0.05) {
-            return Vector3D_Double(simple3D_Pos_Double(0,0,0));
+            distance = 0.06;
         }
 
         return Vector3D_Double(simple3D_Pos_Double((secondPos.myPos.x - myPos.x) / distance,(secondPos.myPos.y - myPos.y) / distance,(secondPos.myPos.z - myPos.z) / distance));
@@ -705,10 +705,40 @@ public:
 class Point_Double {
 private:
     Position3D_Double position = {};
+
 public:
+    simple3D_Pos_Double xVector;
+    simple3D_Pos_Double zVector;
+    simple3D_Pos_Double yVector;
 
     Point_Double(simple3D_Pos_Double impPosition) {
         this->position.myPos = impPosition;
+        this->xVector = {0,0,0};
+        this->zVector = {0,0,0};
+        this->yVector = {0,0,0};
+    }
+
+    void setupUnitVectors(simple3D_Pos_Double referencePoint) {
+        if (position.myPos.x >= referencePoint.x) {
+            xVector = {1,0,0};
+        }
+        if (position.myPos.x < referencePoint.x) {
+            xVector = {-1,0,0};
+        }
+        
+        if (position.myPos.y >= referencePoint.y) {
+            yVector = {0,1,0};
+        }
+        if (position.myPos.y < referencePoint.y) {
+            yVector = {0,-1,0};
+        }
+        
+        if (position.myPos.z >= referencePoint.z) {
+            zVector = {0,0,1};
+        }
+        if (position.myPos.z < referencePoint.z) {
+            zVector = {0,0,-1};
+        }
     }
 
     Position3D_Double getPos() {
@@ -734,6 +764,39 @@ public:
 };
 
 
+enum class ObjectTypes {
+    cube = 1,
+    unique = 2
+};
+
+
+struct playerHelpfulVals {
+    double sinAngleY, cosAngleY, cosAngleZ, sinAngleZ;
+    double angleY, angleZ;
+
+    playerHelpfulVals(double angleY = 0, double angleZ = 0) {
+        this->angleY = angleY;
+        this->angleZ = angleZ;
+        this->sinAngleY = std::sin(angleY);
+        this->cosAngleY = std::cos(angleY);
+        this->sinAngleZ = std::sin(angleZ);
+        this->cosAngleZ = std::cos(angleZ);
+    }
+
+    void changeAngleY(double changeY) {
+        angleY += changeY;
+        sinAngleY = std::sin(angleY);
+        cosAngleY = std::cos(angleY);
+    }
+
+    void changeAngleZ(double changeZ) {
+        angleZ += changeZ;
+        sinAngleZ = std::sin(angleZ);
+        cosAngleZ = std::cos(angleZ);
+    }
+};
+
+
 class Object3D_Double {
 private:
     // links in style of having xxx and then another xxx ...
@@ -747,32 +810,32 @@ private:
     bool stroked;
     SimpleColor outlineCol;
     simple3D_Pos_Double objectSize;
-    std::vector<Vector3D_Double> vectorsFromCentre;
-    std::vector<simple3D_Pos_Double> originalPoses;
 
 public:
 
-    Object3D_Double(int numOfPoints, int numFaces, std::vector<Point_Double> &points, simple3D_Pos_Double &centre, std::vector<int> impLinks, simple3D_Pos_Double impSize, SimpleColor objectColor, SimpleColor outlineCol, bool stroked) {
+    Object3D_Double(int numOfPoints, int numFaces, std::vector<Point_Double> &points, simple3D_Pos_Double &centre, std::vector<int> impLinks, simple3D_Pos_Double impSize, SimpleColor objectColor, SimpleColor outlineCol, bool stroked, ObjectTypes objectType) {
         this->stroked = stroked;
         this->outlineCol = outlineCol;
         this->objectColor = objectColor;
         this->numsOfFaces = numFaces;
         this->numsOfPoints = numOfPoints;
         this->centrePoint = centre;
-        this->objectSize.x = std::sqrt(impSize.x)/64;
-        this->objectSize.y = std::sqrt(impSize.y)/64;
-        this->objectSize.z = std::sqrt(impSize.z)/64;
+        this->objectSize.x = impSize.x/2;
+        this->objectSize.y = impSize.y/2;
+        this->objectSize.z = impSize.z/2;
         this->links = impLinks;
-
-        Position3D_Double centrePointPosition = Position3D_Double(centrePoint);
 
         for (int i = 0; i < numOfPoints; i += 1) {
             this->points.push_back(points[i]);
-            this->originalPoses.push_back(points[i].getPos().myPos);
-
-            Position3D_Double onePos = points[i].getPos();
-            this->vectorsFromCentre.push_back(centrePointPosition.makeAUnitVector(onePos));
+            this->points[i].setupUnitVectors(centrePoint);
         }
+    }
+
+    void updatePoses(int i) {
+        points[i].setPos(simple3D_Pos_Double(
+                centrePoint.x + (points[i].xVector.x * objectSize.x) + (points[i].yVector.x * objectSize.y) + (points[i].zVector.x * objectSize.z),
+                centrePoint.y + (points[i].xVector.y * objectSize.x) + (points[i].yVector.y * objectSize.y) + (points[i].zVector.y * objectSize.z),
+                centrePoint.z + (points[i].xVector.z * objectSize.x) + (points[i].yVector.z * objectSize.y) + (points[i].zVector.z * objectSize.z)));
     }
 
     void rotates(double angleYZ, double angleXZ, double angleXY) {
@@ -786,13 +849,22 @@ public:
         for (int i = 0; i < numsOfPoints; i += 1) {
             // 1. XY rotation, 2. XZ rotation, 3. YZ rotation
 
-            Position3D_Double onePos = points[i].getPos();
-            simple3D_Pos_Double centrePointCentric = simple3D_Pos_Double(onePos.myPos.x - centrePoint.x, onePos.myPos.y - centrePoint.y, onePos.myPos.z - centrePoint.z);
-            originalPoses[i] = simple3D_Pos_Double(
-                centrePoint.x + ((centrePointCentric.x * cosAngleXY - centrePointCentric.y * sinAngleXY) * cosAngleXZ - centrePointCentric.z * sinAngleXZ),
-                centrePoint.y + ((centrePointCentric.y * cosAngleXY + centrePointCentric.x * sinAngleXY) * cosAngleYZ - centrePointCentric.z * sinAngleYZ),
-                centrePoint.z + ((centrePointCentric.z * cosAngleXZ + centrePointCentric.x * sinAngleXZ) * cosAngleYZ + centrePointCentric.y * sinAngleYZ));
-            points[i].setPos(originalPoses[i]);
+            points[i].xVector = simple3D_Pos_Double(
+                (points[i].xVector.x * cosAngleXY - points[i].xVector.y * sinAngleXY) * cosAngleXZ - points[i].xVector.z * sinAngleXZ,
+                (points[i].xVector.y * cosAngleXY + points[i].xVector.x * sinAngleXY) * cosAngleYZ - points[i].xVector.z * sinAngleYZ,
+                (points[i].xVector.z * cosAngleXZ + points[i].xVector.x * sinAngleXZ) * cosAngleYZ + points[i].xVector.y * sinAngleYZ);
+            
+            points[i].yVector = simple3D_Pos_Double(
+                (points[i].yVector.x * cosAngleXY - points[i].yVector.y * sinAngleXY) * cosAngleXZ - points[i].yVector.z * sinAngleXZ,
+                (points[i].yVector.y * cosAngleXY + points[i].yVector.x * sinAngleXY) * cosAngleYZ - points[i].yVector.z * sinAngleYZ,
+                (points[i].yVector.z * cosAngleXZ + points[i].yVector.x * sinAngleXZ) * cosAngleYZ + points[i].yVector.y * sinAngleYZ);
+            
+            points[i].zVector = simple3D_Pos_Double(
+                (points[i].zVector.x * cosAngleXY - points[i].zVector.y * sinAngleXY) * cosAngleXZ - points[i].zVector.z * sinAngleXZ,
+                (points[i].zVector.y * cosAngleXY + points[i].zVector.x * sinAngleXY) * cosAngleYZ - points[i].zVector.z * sinAngleYZ,
+                (points[i].zVector.z * cosAngleXZ + points[i].zVector.x * sinAngleXZ) * cosAngleYZ + points[i].zVector.y * sinAngleYZ);
+            updatePoses(i);
+            
         }
     }
 
@@ -808,7 +880,7 @@ public:
         centrePoint = changePos;
 
         for (int i = 0; i < numsOfPoints; i += 1) {
-            points[i].setPos(changePos);
+            updatePoses(i);
         }
     }
 
@@ -818,17 +890,14 @@ public:
         centrePoint.z += changePos.z;
 
         for (int i = 0; i < numsOfPoints; i += 1) {
-            points[i].changePos(changePos);
+            updatePoses(i);
         }
     }
 
     void setSize(simple3D_Pos_Double newSize) {
         objectSize = newSize;
         for (int i = 0; i < numsOfPoints; i += 1) {
-            simple3D_Pos_Double oneVec = vectorsFromCentre[i].getVec();
-            simple3D_Pos_Double onePos = originalPoses[i];
-
-            points[i].setPos(simple3D_Pos_Double( onePos.x + (oneVec.x * objectSize.x), onePos.y + (oneVec.y * objectSize.y), onePos.z + (oneVec.z * objectSize.z)));
+            updatePoses(i);
         }
     }
 
@@ -837,10 +906,7 @@ public:
         objectSize.y += newSize.y;
         objectSize.z += newSize.z;
         for (int i = 0; i < numsOfPoints; i += 1) {
-            simple3D_Pos_Double oneVec =  vectorsFromCentre[i].getVec();
-            simple3D_Pos_Double onePos = originalPoses[i];
-
-            points[i].setPos(simple3D_Pos_Double( onePos.x + (oneVec.x * objectSize.x), onePos.y + (oneVec.y * objectSize.y), onePos.z + (oneVec.z * objectSize.z)));
+            updatePoses(i);
         }
     }
 
@@ -862,7 +928,7 @@ public:
         }
     }
 
-    void drawOutSDL2(Vector3D_Double &headingVec, Vector3D_Double &upVector, Vector3D_Double &rightVector, Position3D_Double &headingOrigin, screenAndCameraInfo &camera_info, uint32_t* colorsBuffer, int pitch, double *zBuffer) {
+    void drawOutSDL2(Vector3D_Double &headingVec, Vector3D_Double &upVector, Vector3D_Double &rightVector, Position3D_Double &headingOrigin, screenAndCameraInfo &camera_info, uint32_t* colorsBuffer, int pitch, double *zBuffer, bool blockify, double detail) {
 
         std::vector<Position3D_Double> pseudoPos;
 
@@ -876,35 +942,8 @@ public:
             }
 
             ScreenPolygon_Double onePolygon = ScreenPolygon_Double(pseudoPos[links[i]], pseudoPos[links[i+1]], pseudoPos[links[i+2]], objectColor);
-            onePolygon.drawOutPolygonSDL2Fast(zBuffer, colorsBuffer, pitch, camera_info, stroked, outlineCol, 25, true, 1);
+            onePolygon.drawOutPolygonSDL2Fast(zBuffer, colorsBuffer, pitch, camera_info, stroked, outlineCol, 25, blockify, detail);
         }
-    }
-};
-
-
-struct playerHelpfulVals {
-    double sinAngleY, cosAngleY, cosAngleZ, sinAngleZ;
-    double angleY, angleZ;
-    
-    playerHelpfulVals(double angleY = 0, double angleZ = 0) {
-        this->angleY = angleY;
-        this->angleZ = angleZ;
-        this->sinAngleY = std::sin(angleY);
-        this->cosAngleY = std::cos(angleY);
-        this->sinAngleZ = std::sin(angleZ);
-        this->cosAngleZ = std::cos(angleZ);
-    }
-    
-    void changeAngleY(double changeY) {
-        angleY += changeY;
-        sinAngleY = std::sin(angleY);
-        cosAngleY = std::cos(angleY);
-    }
-    
-    void changeAngleZ(double changeZ) {
-        angleZ += changeZ;
-        sinAngleZ = std::sin(angleZ);
-        cosAngleZ = std::cos(angleZ);
     }
 };
 
@@ -923,13 +962,13 @@ Object3D_Double createCubePoints(simple3D_Pos_Double onePos, simple3D_Pos_Double
     simple3D_Pos_Double centre = simple3D_Pos_Double(onePos.x + (oneSize.x/2), onePos.y + (oneSize.y/2), onePos.z + (oneSize.z/2));
 
     return Object3D_Double(8, 36, points, centre, {
-        0,2,1, 0,6,2,  // Z=0
+         0,2,1, 0,6,2,  // Z=0
          3,4,5, 3,5,7,  // Z=1
          0,5,4, 0,4,6,  // X=0
          1,2,3, 1,3,7,  // X=1
          0,1,7, 0,7,5,  // Y=0
          2,4,3, 2,6,4   // Y=1
-    }, oneSize, objColor, outColor, stroked);
+    }, oneSize, objColor, outColor, stroked, ObjectTypes::cube);
 }
 
 
@@ -944,11 +983,15 @@ private:
     Vector3D_Double rightVec = Vector3D_Double(simple3D_Pos_Double());
     Vector3D_Double upVec = Vector3D_Double(simple3D_Pos_Double());
     Position3D_Double myPos = Position3D_Double(simple3D_Pos_Double());
+    bool pixelization;
+    double detailLevel;
 public:
 
-    Player_Double(double speed = 0.5, int screenHeight = 1080, int screenWidth = 1920, int fov = 90, simple3D_Pos_Double beginPos = simple3D_Pos_Double(0,0,0)) {
+    Player_Double(double speed = 0.5, int screenHeight = 1080, int screenWidth = 1920, int fov = 90, simple3D_Pos_Double beginPos = simple3D_Pos_Double(0,0,0), bool pixelization = true, double detaiLevel = 1) {
         this->myPos.setPosition(beginPos);
         this->speed = speed;
+        this->pixelization = pixelization;
+        this->detailLevel = detaiLevel;
         
         this->values = playerHelpfulVals(0,0);
         this->valuesUp = playerHelpfulVals(this->values.angleY,(this->values.angleZ - M_PI / 2));
@@ -966,7 +1009,7 @@ public:
         pitch /= 4;
         if (sdl2Type) {
             for (Object3D_Double oneObject : objects) {
-                oneObject.drawOutSDL2(headingVec, upVec, rightVec, myPos, myCameraInfo, sdlBuffer, pitch, zBuffer);
+                oneObject.drawOutSDL2(headingVec, upVec, rightVec, myPos, myCameraInfo, sdlBuffer, pitch, zBuffer, pixelization, detailLevel);
             }
         }
         if (!sdl2Type) {
@@ -1078,7 +1121,7 @@ int main(int argc, char* argv[]) {
     bool running = true;
     SDL_Event event;
 
-    Player_Double firstPlayer = Player_Double(0.5,MonitorHeight,MonitorWidth,90);
+    Player_Double firstPlayer = Player_Double(0.5,MonitorHeight,MonitorWidth,90, simple3D_Pos_Double(0,0,0), true, 5);
 
     std::vector<Object3D_Double> kostky = {};
     for (int i = 0; i < 6; i += 1) {
@@ -1132,6 +1175,15 @@ int main(int argc, char* argv[]) {
                 }
                 if (event.key.keysym.sym == SDLK_n) {
                     kostky[getRandomInt(0,5)].rotates(-0.5,0,0);
+                }
+                if (event.key.keysym.sym == SDLK_c) {
+                    kostky[getRandomInt(0,5)].changeSize(simple3D_Pos_Double(0,1,0));
+                }
+                if (event.key.keysym.sym == SDLK_v) {
+                    kostky[getRandomInt(0,5)].changeSize(simple3D_Pos_Double(1,0,0));
+                }
+                if (event.key.keysym.sym == SDLK_b) {
+                    kostky[getRandomInt(0,5)].changeSize(simple3D_Pos_Double(0,0,1));
                 }
             }
         }
