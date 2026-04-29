@@ -16,6 +16,7 @@
 #define MonitorWidth 2560
 
 const Uint8* state = SDL_GetKeyboardState(NULL);
+const Uint32 mouseState = SDL_GetMouseState(NULL,NULL);
 
 //fully operational 3D raycasting engine
 
@@ -28,8 +29,8 @@ double getRandomDouble(int min, int max) {
 }
 
 int getRandomInt(int min, int max) {
-    std::random_device rd;
-    std::mt19937 gen(rd());
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
     std::uniform_real_distribution<float> dis(0.0f, 1.0f);
     int returnableValue = int((dis(gen)*(max-min+1))+min);
     return returnableValue;
@@ -71,6 +72,10 @@ public:
 
     double dotProduct(Vector3D_Double &secondVec) {
         return (secondVec.getVecRef().x * myPos.x) + (secondVec.getVecRef().y * myPos.y) + (secondVec.getVecRef().z * myPos.z);
+    }
+
+    double dotProductSimple(simple3D_Pos_Double &secondVec) {
+        return (secondVec.x * myPos.x) + (secondVec.y * myPos.y) + (secondVec.z * myPos.z);
     }
 
     void setVector(simple3D_Pos_Double impPos) {
@@ -168,6 +173,14 @@ public:
         return Vector3D_Double(simple3D_Pos_Double(myPos.x - secondPos.myPos.x,myPos.y - secondPos.myPos.y,0));
     }
 
+    double absoluteDistance(Position3D_Double &secondPos) {
+        return std::sqrt(std::pow(secondPos.myPos.x - myPos.x,2) + std::pow(secondPos.myPos.y - myPos.y,2) + std::pow(secondPos.myPos.z - myPos.z,2));
+    }
+
+    double absoluteDistanceSimple(simple3D_Pos_Double &secondPos) {
+        return std::sqrt(std::pow(secondPos.x - myPos.x,2) + std::pow(secondPos.y - myPos.y,2) + std::pow(secondPos.z - myPos.z,2));
+    }
+
     Position3D_Double changedBy(simple3D_Pos_Double changePos) {
         return Position3D_Double(simple3D_Pos_Double(myPos.x + changePos.x, myPos.y + changePos.y, myPos.z + changePos.z));
     }
@@ -232,10 +245,10 @@ private:
             minsAMax[3] = 0;
         }
         if (minsAMax[0] >= camerasInfo.screenWidth) {
-            minsAMax[0] = camerasInfo.screenWidth;
+            minsAMax[0] = camerasInfo.screenWidth-2;
         }
         if (minsAMax[1] >= camerasInfo.screenHeight) {
-            minsAMax[1] = camerasInfo.screenHeight;
+            minsAMax[1] = camerasInfo.screenHeight-2;
         }
         return minsAMax;
     }
@@ -408,7 +421,7 @@ public:
                 leftRight = true;
             }
 
-            for (int yPos = minsAmaxs[3]; yPos < minsAmaxs[1]; yPos += blockyfacion) {
+            for (int yPos = minsAmaxs[3]; yPos < minsAmaxs[1]+1; yPos += blockyfacion) {
                 int xPos2 = std::round(points[indexesNumbers[0]].myPos.x + (koeficients[0] * (yPos - points[indexesNumbers[0]].myPos.y)));
                 int xPos1 = 0;
                 if (yPos >= points[indexesNumbers[2]].myPos.y) {
@@ -437,14 +450,14 @@ public:
                 }
 
                 if (minX >= cameraInfo.screenWidth) {
-                    minX = cameraInfo.screenWidth-1;
+                    minX = cameraInfo.screenWidth-2;
                 }
 
                 if (maxX <= 0) {
                     maxX = 0;
                 }
 
-                for (int xPos = minX; xPos < maxX; xPos += 1) {
+                for (int xPos = minX; xPos < maxX+1; xPos += 1) {
                     double globalZ = points[2].myPos.z + (xPos - points[2].myPos.x) * gradiant[0] + (yPos - points[2].myPos.y) * gradiant[1];
 
                     if (blockification) {
@@ -491,7 +504,7 @@ public:
                 leftRight = true;
             }
 
-            for (int xPos = minsAmaxs[2]; xPos < minsAmaxs[0]; xPos += blockyfacion) {
+            for (int xPos = minsAmaxs[2]; xPos < minsAmaxs[0]+1; xPos += blockyfacion) {
 
                 int yPos2 = std::round(points[indexesNumbers[0]].myPos.y + (koeficients[0] * (xPos - points[indexesNumbers[0]].myPos.x)));
                 int yPos1 = 0;
@@ -518,18 +531,18 @@ public:
                 }
 
                 if (maxY >= cameraInfo.screenHeight) {
-                    maxY = cameraInfo.screenHeight-1;
+                    maxY = cameraInfo.screenHeight-2;
                 }
 
                 if (minY >= cameraInfo.screenHeight) {
-                    minY = cameraInfo.screenHeight-1;
+                    minY = cameraInfo.screenHeight-2;
                 }
 
                 if (maxY <= 0) {
                     maxY = 0;
                 }
 
-                for (int yPos = minY; yPos < maxY; yPos += 1) {
+                for (int yPos = minY; yPos < maxY+1; yPos += 1) {
                     double globalZ = points[2].myPos.z + (xPos - points[2].myPos.x) * gradiant[0] + (yPos - points[2].myPos.y) * gradiant[1];
 
                     if (blockification) {
@@ -797,9 +810,61 @@ struct playerHelpfulVals {
 };
 
 
+bool AABBCCColision(simple3D_Pos_Double objB, simple3D_Pos_Double &sizeA) {
+    if (- sizeA.x < objB.x && sizeA.x > objB.x) {
+        if (- sizeA.y < objB.y && sizeA.y > objB.y) {
+            if (- sizeA.z < objB.z && sizeA.z > objB.z) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+
+simple3D_Pos_Double locilazePoint(Position3D_Double &playerPos, Position3D_Double &centrePoint, std::array<Vector3D_Double, 3> &unitVectorsCentre) {
+    Vector3D_Double centPointVec = centrePoint.makeAVector(playerPos);
+    return simple3D_Pos_Double(unitVectorsCentre[0].dotProduct(centPointVec), unitVectorsCentre[1].dotProduct(centPointVec), unitVectorsCentre[2].dotProduct(centPointVec));
+}
+
+
+bool boundBoxCol(Position3D_Double &playerPos, Position3D_Double &centrePoint, std::array<Vector3D_Double, 3> &unitVectorsCentre, simple3D_Pos_Double &playerSize, simple3D_Pos_Double &blockSize) {
+    std::array<Position3D_Double, 9> points = {
+        Position3D_Double(playerPos.changedBy(simple3D_Pos_Double(playerSize.x, playerSize.y, playerSize.z))),
+        Position3D_Double(playerPos.changedBy(simple3D_Pos_Double(-playerSize.x, playerSize.y, playerSize.z))),
+        Position3D_Double(playerPos.changedBy(simple3D_Pos_Double(playerSize.x, -playerSize.y, playerSize.z))),
+        Position3D_Double(playerPos.changedBy(simple3D_Pos_Double(playerSize.x, playerSize.y, -playerSize.z))),
+        Position3D_Double(playerPos.changedBy(simple3D_Pos_Double(-playerSize.x, -playerSize.y, playerSize.z))),
+        Position3D_Double(playerPos.changedBy(simple3D_Pos_Double(playerSize.x, -playerSize.y, -playerSize.z))),
+        Position3D_Double(playerPos.changedBy(simple3D_Pos_Double(-playerSize.x, playerSize.y, -playerSize.z))),
+        Position3D_Double(playerPos.changedBy(simple3D_Pos_Double(-playerSize.x, -playerSize.y, -playerSize.z))),
+        Position3D_Double(playerPos.changedBy(simple3D_Pos_Double(0, 0, 0)))
+    };
+
+    for (int i = 0; i < 9; i += 1) {
+        if (AABBCCColision(locilazePoint(points[i], centrePoint, unitVectorsCentre), blockSize)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+
+double findSmallestThree(std::array<double, 3> things) {
+    double returningThing = things[0];
+    for (int i = 0; i < 3; i += 1) {
+        if (things[i] <= returningThing) {
+            returningThing = things[i];
+        }
+    }
+    return returningThing;
+}
+
+
 class Object3D_Double {
 private:
     // links in style of having xxx and then another xxx ...
+    // for now only cube collisions work
 
     std::vector<int> links;
     std::vector<Point_Double> points;
@@ -810,10 +875,19 @@ private:
     bool stroked;
     SimpleColor outlineCol;
     simple3D_Pos_Double objectSize;
+    double outLineSize;
+    double outerRad;
+    double innerRad;
+    std::array<Vector3D_Double, 3> centreVec = {Vector3D_Double(simple3D_Pos_Double(1,0,0)), Vector3D_Double(simple3D_Pos_Double(0,1,0)), Vector3D_Double(simple3D_Pos_Double(0,0,1))};
 
 public:
+    bool visibility;
+    bool colision;
 
-    Object3D_Double(int numOfPoints, int numFaces, std::vector<Point_Double> &points, simple3D_Pos_Double &centre, std::vector<int> impLinks, simple3D_Pos_Double impSize, SimpleColor objectColor, SimpleColor outlineCol, bool stroked, ObjectTypes objectType) {
+    Object3D_Double(int numOfPoints, int numFaces, std::vector<Point_Double> &points, simple3D_Pos_Double &centre,
+        std::vector<int> impLinks, simple3D_Pos_Double impSize = simple3D_Pos_Double(0,0,0), SimpleColor objectColor = SimpleColor(0,0,0,255),
+        SimpleColor outlineCol = SimpleColor(0,0,0,255), bool stroked = false, double outLineSize = 1, bool visibility = false, bool colision = false) {
+        this->outLineSize = outLineSize;
         this->stroked = stroked;
         this->outlineCol = outlineCol;
         this->objectColor = objectColor;
@@ -824,11 +898,32 @@ public:
         this->objectSize.y = impSize.y/2;
         this->objectSize.z = impSize.z/2;
         this->links = impLinks;
+        this->visibility = visibility;
+        this->colision = colision;
+        this->outerRad = std::sqrt(std::pow(objectSize.x, 2) + std::pow(objectSize.y, 2) + std::pow(objectSize.z, 2));
+        this->innerRad = findSmallestThree({objectSize.x, objectSize.y, objectSize.z});
+        this->centreVec[0] = Vector3D_Double(simple3D_Pos_Double(1,0,0));
+        this->centreVec[1] = Vector3D_Double(simple3D_Pos_Double(0,1,0));
+        this->centreVec[2] = Vector3D_Double(simple3D_Pos_Double(0,0,1));
 
         for (int i = 0; i < numOfPoints; i += 1) {
             this->points.push_back(points[i]);
             this->points[i].setupUnitVectors(centrePoint);
         }
+    }
+
+    bool colide(Position3D_Double &playerPos, simple3D_Pos_Double &playerSize, double playerRad) {
+        Position3D_Double centrePosition3D = Position3D_Double(centrePoint);
+        double distance = std::pow(playerPos.myPos.x - centrePoint.x, 2) + std::pow(playerPos.myPos.y - centrePoint.y, 2) + std::pow(playerPos.myPos.z - centrePoint.z, 2);
+        if (distance <= std::pow(playerRad + outerRad,2)) {
+            if (distance <= std::pow(playerRad + innerRad,2)) {
+                return true;
+            }
+            if (boundBoxCol(playerPos, centrePosition3D, centreVec, playerSize, objectSize)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     void updatePoses(int i) {
@@ -845,6 +940,20 @@ public:
         double sinAngleXY = std::sin(angleXY);
         double cosAngleXZ = std::cos(angleXZ);
         double sinAngleXZ = std::sin(angleXZ);
+        centreVec[0] = Vector3D_Double(simple3D_Pos_Double(
+                (centreVec[0].myPos.x * cosAngleXY - centreVec[0].myPos.y * sinAngleXY) * cosAngleXZ - centreVec[0].myPos.z * sinAngleXZ,
+                (centreVec[0].myPos.y * cosAngleXY + centreVec[0].myPos.x * sinAngleXY) * cosAngleYZ - centreVec[0].myPos.z * sinAngleYZ,
+                (centreVec[0].myPos.z * cosAngleXZ + centreVec[0].myPos.x * sinAngleXZ) * cosAngleYZ + centreVec[0].myPos.y * sinAngleYZ));
+
+        centreVec[1] = Vector3D_Double(simple3D_Pos_Double(
+                (centreVec[1].myPos.x * cosAngleXY - centreVec[1].myPos.y * sinAngleXY) * cosAngleXZ - centreVec[1].myPos.z * sinAngleXZ,
+                (centreVec[1].myPos.y * cosAngleXY + centreVec[1].myPos.x * sinAngleXY) * cosAngleYZ - centreVec[1].myPos.z * sinAngleYZ,
+                (centreVec[1].myPos.z * cosAngleXZ + centreVec[1].myPos.x * sinAngleXZ) * cosAngleYZ + centreVec[1].myPos.y * sinAngleYZ));
+
+        centreVec[2] = Vector3D_Double(simple3D_Pos_Double(
+                (centreVec[2].myPos.x * cosAngleXY - centreVec[2].myPos.y * sinAngleXY) * cosAngleXZ - centreVec[2].myPos.z * sinAngleXZ,
+                (centreVec[2].myPos.y * cosAngleXY + centreVec[2].myPos.x * sinAngleXY) * cosAngleYZ - centreVec[2].myPos.z * sinAngleYZ,
+                (centreVec[2].myPos.z * cosAngleXZ + centreVec[2].myPos.x * sinAngleXZ) * cosAngleYZ + centreVec[2].myPos.y * sinAngleYZ));
 
         for (int i = 0; i < numsOfPoints; i += 1) {
             // 1. XY rotation, 2. XZ rotation, 3. YZ rotation
@@ -899,6 +1008,8 @@ public:
         for (int i = 0; i < numsOfPoints; i += 1) {
             updatePoses(i);
         }
+        outerRad = std::sqrt(std::pow(objectSize.x, 2) + std::pow(objectSize.y, 2) + std::pow(objectSize.z, 2));
+        innerRad = findSmallestThree({objectSize.x, objectSize.y, objectSize.z});
     }
 
     void changeSize(simple3D_Pos_Double newSize) {
@@ -908,24 +1019,8 @@ public:
         for (int i = 0; i < numsOfPoints; i += 1) {
             updatePoses(i);
         }
-    }
-
-    void drawOut(Vector3D_Double &headingVec, Vector3D_Double &upVector, Vector3D_Double &rightVector, Position3D_Double &headingOrigin, screenAndCameraInfo &camera_info, SimpleColor* colorsBuffer, double *zBuffer) {
-
-        std::vector<Position3D_Double> pseudoPos;
-
-        for (int i = 0; i < numsOfPoints; i += 1) {
-            pseudoPos[i] = (points[i].getRelativePos(headingVec, upVector, rightVector, headingOrigin)).makeIntoScreensCord(camera_info);
-        }
-
-        for (int i = 0; i < numsOfFaces; i += 3) {
-            if (pseudoPos[links[i]].myPos.z < 0.1 || pseudoPos[links[i+1]].myPos.z < 0.1 || pseudoPos[links[i+2]].myPos.z < 0.1) {
-                continue;
-            }
-
-            ScreenPolygon_Double onePolygon = ScreenPolygon_Double(pseudoPos[links[i]], pseudoPos[links[i+1]], pseudoPos[links[i+2]], objectColor);
-            onePolygon.drawOutPolygonDouble(zBuffer, colorsBuffer, camera_info, stroked, outlineCol);
-        }
+        outerRad = std::sqrt(std::pow(objectSize.x, 2) + std::pow(objectSize.y, 2) + std::pow(objectSize.z, 2));
+        innerRad = findSmallestThree({objectSize.x, objectSize.y, objectSize.z});
     }
 
     void drawOutSDL2(Vector3D_Double &headingVec, Vector3D_Double &upVector, Vector3D_Double &rightVector, Position3D_Double &headingOrigin, screenAndCameraInfo &camera_info, uint32_t* colorsBuffer, int pitch, double *zBuffer, bool blockify, double detail) {
@@ -942,13 +1037,13 @@ public:
             }
 
             ScreenPolygon_Double onePolygon = ScreenPolygon_Double(pseudoPos[links[i]], pseudoPos[links[i+1]], pseudoPos[links[i+2]], objectColor);
-            onePolygon.drawOutPolygonSDL2Fast(zBuffer, colorsBuffer, pitch, camera_info, stroked, outlineCol, 25, blockify, detail);
+            onePolygon.drawOutPolygonSDL2Fast(zBuffer, colorsBuffer, pitch, camera_info, stroked, outlineCol, outLineSize, blockify, detail);
         }
     }
 };
 
 
-Object3D_Double createCubePoints(simple3D_Pos_Double onePos, simple3D_Pos_Double oneSize, SimpleColor objColor, SimpleColor outColor, bool stroked) {
+Object3D_Double createCubePoints(simple3D_Pos_Double onePos, simple3D_Pos_Double oneSize, SimpleColor objColor, SimpleColor outColor, bool stroked, double outlineSize, bool colisions = false, bool visibility = false) {
     std::vector<Point_Double> points;
     points.push_back(Point_Double(onePos.changedBy(0, 0, 0)));
     points.push_back(Point_Double(onePos.changedBy(oneSize.x, 0, 0)));
@@ -968,7 +1063,7 @@ Object3D_Double createCubePoints(simple3D_Pos_Double onePos, simple3D_Pos_Double
          1,2,3, 1,3,7,  // X=1
          0,1,7, 0,7,5,  // Y=0
          2,4,3, 2,6,4   // Y=1
-    }, oneSize, objColor, outColor, stroked, ObjectTypes::cube);
+    }, oneSize, objColor, outColor, stroked, outlineSize, visibility, colisions);
 }
 
 
@@ -985,13 +1080,30 @@ private:
     Position3D_Double myPos = Position3D_Double(simple3D_Pos_Double());
     bool pixelization;
     double detailLevel;
+    double sizeRadius;
+    bool coliding = false;
+    simple3D_Pos_Double lastPos;
+    simple3D_Pos_Double sizeBox;
+    Position3D_Double nextPosition;
+    double gravity;
+    bool jumpingMode;
+    double sestivity;
+
 public:
 
-    Player_Double(double speed = 0.5, int screenHeight = 1080, int screenWidth = 1920, int fov = 90, simple3D_Pos_Double beginPos = simple3D_Pos_Double(0,0,0), bool pixelization = true, double detaiLevel = 1) {
+    Player_Double(double speed = 0.5, int screenHeight = 1080, int screenWidth = 1920, int fov = 90, simple3D_Pos_Double beginPos = simple3D_Pos_Double(0,0,0),
+        bool pixelization = true, double detaiLevel = 1, simple3D_Pos_Double sizeBox = simple3D_Pos_Double(4,4,4), double gravity = 0, bool jumpingMode = false, double senstivity = 0.001) {
         this->myPos.setPosition(beginPos);
         this->speed = speed;
         this->pixelization = pixelization;
         this->detailLevel = detaiLevel;
+        this->sizeRadius = findSmallestThree({sizeBox.x, sizeBox.y, sizeBox.z});
+        this->sizeBox = sizeBox;
+        this->coliding = false;
+        this->nextPosition = Position3D_Double(beginPos);
+        this->gravity = gravity;
+        this->jumpingMode = jumpingMode;
+        this->sestivity = senstivity;
         
         this->values = playerHelpfulVals(0,0);
         this->valuesUp = playerHelpfulVals(this->values.angleY,(this->values.angleZ - M_PI / 2));
@@ -1005,81 +1117,72 @@ public:
         this->myCameraInfo = screenAndCameraInfo(((screenWidth / 2) / (std::tan(radiansFOV/2))) * 1.33, ((screenHeight / 2) / (std::tan(radiansFOV/2))), screenHeight, screenWidth);
     }
 
-    void camera(std::vector<Object3D_Double> const &objects, uint32_t* sdlBuffer, double* zBuffer, SimpleColor* universalColorBuffer, bool sdl2Type, int pitch) {
+    void camera(std::vector<Object3D_Double> const &objects, uint32_t* sdlBuffer, double* zBuffer, SimpleColor* universalColorBuffer, int pitch) {
         pitch /= 4;
-        if (sdl2Type) {
-            for (Object3D_Double oneObject : objects) {
+        coliding = false;
+        for (Object3D_Double oneObject : objects) {
+            if (oneObject.visibility) {
                 oneObject.drawOutSDL2(headingVec, upVec, rightVec, myPos, myCameraInfo, sdlBuffer, pitch, zBuffer, pixelization, detailLevel);
             }
-        }
-        if (!sdl2Type) {
-            for (Object3D_Double oneObject : objects) {
-                oneObject.drawOut(headingVec, upVec, rightVec, myPos, myCameraInfo, universalColorBuffer, zBuffer);
+            if (oneObject.colision) {
+                if (oneObject.colide(nextPosition, sizeBox, sizeRadius)) {
+                    coliding = true;
+                }
             }
         }
     }
 
-    void movement() {
+    void cameraMovementSDL2(SDL_Event event) {
+        if (event.type == SDL_MOUSEMOTION) {
+            values.changeAngleY(event.motion.xrel * sestivity);
+            valuesUp.changeAngleY(event.motion.xrel * sestivity);
+            valuesRight.changeAngleY(event.motion.xrel * sestivity);
+
+            if (values.angleZ >= -1.4 && values.angleZ <= 1) {
+                values.changeAngleZ(-event.motion.yrel * sestivity);
+                valuesUp.changeAngleZ(-event.motion.yrel * sestivity);
+            }
+
+            headingVec.setVector(simple3D_Pos_Double(values.cosAngleY * values.cosAngleZ, values.sinAngleY * values.cosAngleZ, values.sinAngleZ));
+            rightVec.setVector(simple3D_Pos_Double(valuesRight.cosAngleY * valuesRight.cosAngleZ, valuesRight.sinAngleY * valuesRight.cosAngleZ, 0));
+            upVec.setVector(simple3D_Pos_Double(valuesUp.cosAngleY * valuesUp.cosAngleZ, valuesUp.sinAngleY * valuesUp.cosAngleZ, valuesUp.sinAngleZ));
+
+        }
+    }
+
+    void defaultMovementSDL2() {
         if (state[SDL_SCANCODE_W]) {
-            myPos.myPos.x += speed * values.cosAngleY;
-            myPos.myPos.y += speed * values.sinAngleY;
+            nextPosition.myPos.x += speed * values.cosAngleY;
+            nextPosition.myPos.y += speed * values.sinAngleY;
         }
         if (state[SDL_SCANCODE_S]) {
-            myPos.myPos.x -= speed * values.cosAngleY;
-            myPos.myPos.y -= speed * values.sinAngleY;
+            nextPosition.myPos.x -= speed * values.cosAngleY;
+            nextPosition.myPos.y -= speed * values.sinAngleY;
         }
         if (state[SDL_SCANCODE_D]) {
-            myPos.myPos.x += speed * valuesRight.cosAngleY;
-            myPos.myPos.y += speed * valuesRight.sinAngleY;
+            nextPosition.myPos.x += speed * valuesRight.cosAngleY;
+            nextPosition.myPos.y += speed * valuesRight.sinAngleY;
         }
         if (state[SDL_SCANCODE_A]) {
-            myPos.myPos.x -= speed * valuesRight.cosAngleY;
-            myPos.myPos.y -= speed * valuesRight.sinAngleY;
+            nextPosition.myPos.x -= speed * valuesRight.cosAngleY;
+            nextPosition.myPos.y -= speed * valuesRight.sinAngleY;
         }
         if (state[SDL_SCANCODE_SPACE]) {
-            myPos.myPos.z += speed;
+            nextPosition.myPos.z += speed;
         }
         if (state[SDL_SCANCODE_LSHIFT]) {
-            myPos.myPos.z -= speed;
+            nextPosition.myPos.z -= speed;
         }
-        if (state[SDL_SCANCODE_DOWN]) {
-            if (values.angleZ >= -1.4) {
-                values.changeAngleZ(-0.05);
-                valuesUp.changeAngleZ(-0.05);
-                
-                headingVec.setVector(simple3D_Pos_Double(values.cosAngleY * values.cosAngleZ, values.sinAngleY * values.cosAngleZ, values.sinAngleZ));
-                rightVec.setVector(simple3D_Pos_Double(valuesRight.cosAngleY * valuesRight.cosAngleZ, valuesRight.sinAngleY * valuesRight.cosAngleZ, 0));
-                upVec.setVector(simple3D_Pos_Double(valuesUp.cosAngleY * valuesUp.cosAngleZ, valuesUp.sinAngleY * valuesUp.cosAngleZ, valuesUp.sinAngleZ));
-            }
-        }
-        if (state[SDL_SCANCODE_UP]) {
-            if (values.angleZ <= 1) {
-                values.changeAngleZ(0.05);
-                valuesUp.changeAngleZ(0.05);
+    }
 
-                headingVec.setVector(simple3D_Pos_Double(values.cosAngleY * values.cosAngleZ, values.sinAngleY * values.cosAngleZ, values.sinAngleZ));
-                rightVec.setVector(simple3D_Pos_Double(valuesRight.cosAngleY * valuesRight.cosAngleZ, valuesRight.sinAngleY * valuesRight.cosAngleZ, 0));
-                upVec.setVector(simple3D_Pos_Double(valuesUp.cosAngleY * valuesUp.cosAngleZ, valuesUp.sinAngleY * valuesUp.cosAngleZ, valuesUp.sinAngleZ));
-            }
+    void movementSDL2() {
+        if (!coliding) {
+            myPos = nextPosition;
         }
-        if (state[SDL_SCANCODE_LEFT]) {
-            values.changeAngleY(-0.05);
-            valuesUp.changeAngleY(-0.05);
-            valuesRight.changeAngleY(-0.05);
-
-            headingVec.setVector(simple3D_Pos_Double(values.cosAngleY * values.cosAngleZ, values.sinAngleY * values.cosAngleZ, values.sinAngleZ));
-            rightVec.setVector(simple3D_Pos_Double(valuesRight.cosAngleY * valuesRight.cosAngleZ, valuesRight.sinAngleY * valuesRight.cosAngleZ, 0));
-            upVec.setVector(simple3D_Pos_Double(valuesUp.cosAngleY * valuesUp.cosAngleZ, valuesUp.sinAngleY * valuesUp.cosAngleZ, valuesUp.sinAngleZ));
+        if (coliding) {
+            nextPosition = myPos;
         }
-        if (state[SDL_SCANCODE_RIGHT]) {
-            values.changeAngleY(0.05);
-            valuesUp.changeAngleY(0.05);
-            valuesRight.changeAngleY(0.05);
-
-            headingVec.setVector(simple3D_Pos_Double(values.cosAngleY * values.cosAngleZ, values.sinAngleY * values.cosAngleZ, values.sinAngleZ));
-            rightVec.setVector(simple3D_Pos_Double(valuesRight.cosAngleY * valuesRight.cosAngleZ, valuesRight.sinAngleY * valuesRight.cosAngleZ, 0));
-            upVec.setVector(simple3D_Pos_Double(valuesUp.cosAngleY * valuesUp.cosAngleZ, valuesUp.sinAngleY * valuesUp.cosAngleZ, valuesUp.sinAngleZ));
-        }
+        defaultMovementSDL2();
     }
 };
 
@@ -1120,18 +1223,19 @@ int main(int argc, char* argv[]) {
 
     bool running = true;
     SDL_Event event;
+    SDL_SetRelativeMouseMode(SDL_TRUE);
 
-    Player_Double firstPlayer = Player_Double(0.5,MonitorHeight,MonitorWidth,90, simple3D_Pos_Double(0,0,0), true, 5);
+    Player_Double firstPlayer = Player_Double(0.5,MonitorHeight,MonitorWidth,90, simple3D_Pos_Double(0,0,0), true, 0.1);
 
     std::vector<Object3D_Double> kostky = {};
-    for (int i = 0; i < 6; i += 1) {
+    for (int i = 0; i < 12; i += 1) {
         kostky.push_back(createCubePoints(simple3D_Pos_Double(getRandomDouble(-35,35),getRandomDouble(-35,35),getRandomDouble(-35,35)), simple3D_Pos_Double(getRandomDouble(2,10),getRandomDouble(2,10),getRandomDouble(2,10)),
-            SimpleColor(getRandomInt(1,255),getRandomInt(1,255),getRandomInt(1,255)), SimpleColor(0, 0, 0), false));
+            SimpleColor(getRandomInt(1,255),getRandomInt(1,255),getRandomInt(1,255)), SimpleColor(0, 0, 0), false, 50, true, true));
     }
 
-    kostky.push_back(createCubePoints(simple3D_Pos_Double(5,10,3), simple3D_Pos_Double(2,3,1), SimpleColor(250,0,0), SimpleColor(0, 0, 0), false));
-    kostky.push_back(createCubePoints(simple3D_Pos_Double(2,15,13), simple3D_Pos_Double(2,3,1), SimpleColor(250,0,0), SimpleColor(0, 0, 0), false));
-    kostky.push_back(createCubePoints(simple3D_Pos_Double(12,15,13), simple3D_Pos_Double(2,3,3), SimpleColor(250,120,0), SimpleColor(0, 0, 0), false));
+    kostky.push_back(createCubePoints(simple3D_Pos_Double(5,10,3), simple3D_Pos_Double(2,3,1), SimpleColor(250,0,0), SimpleColor(0, 0, 0), false, 50, true, true));
+    kostky.push_back(createCubePoints(simple3D_Pos_Double(2,15,13), simple3D_Pos_Double(2,3,1), SimpleColor(250,0,0), SimpleColor(0, 0, 0), false, 50, true, true));
+    kostky.push_back(createCubePoints(simple3D_Pos_Double(12,15,13), simple3D_Pos_Double(2,3,3), SimpleColor(250,120,0), SimpleColor(0, 0, 0), false, 50, true, true));
 
     double renderDistance = 800;
 
@@ -1150,6 +1254,7 @@ int main(int argc, char* argv[]) {
 
     while (running) {
         while (SDL_PollEvent(&event)) {
+            firstPlayer.cameraMovementSDL2(event);
             if (event.type == SDL_QUIT) {
                 running = false;
             }
@@ -1158,35 +1263,37 @@ int main(int argc, char* argv[]) {
                     running = false;
                 }
                 if (event.key.keysym.sym == SDLK_j) {
-                    kostky[getRandomInt(0,5)].rotates(0,0.5,0);
+                    kostky[getRandomInt(0,4)].rotates(0,0.5,0);
                 }
                 if (event.key.keysym.sym == SDLK_i) {
-                    kostky[getRandomInt(0,5)].rotates(0,-0.5,0);
+                    kostky[getRandomInt(0,4)].rotates(0,-0.5,0);
                 }
                 if (event.key.keysym.sym == SDLK_k) {
-                    kostky[getRandomInt(0,5)].rotates(0,0,0.5);
+                    kostky[getRandomInt(0,4)].rotates(0,0,0.5);
                 }
                 if (event.key.keysym.sym == SDLK_l) {
-                    kostky[getRandomInt(0,5)].rotates(0,0,-0.5);
+                    kostky[getRandomInt(0,4)].rotates(0,0,-0.5);
                 }
                 if (event.key.keysym.sym == SDLK_m) {
-                    kostky[getRandomInt(0,5)].rotates(0.5
+                    kostky[getRandomInt(0,4)].rotates(0.5
                         ,0,0);
                 }
                 if (event.key.keysym.sym == SDLK_n) {
-                    kostky[getRandomInt(0,5)].rotates(-0.5,0,0);
+                    kostky[getRandomInt(0,4)].rotates(-0.5,0,0);
                 }
                 if (event.key.keysym.sym == SDLK_c) {
-                    kostky[getRandomInt(0,5)].changeSize(simple3D_Pos_Double(0,1,0));
+                    kostky[getRandomInt(0,4)].changeSize(simple3D_Pos_Double(0,1,0));
                 }
                 if (event.key.keysym.sym == SDLK_v) {
-                    kostky[getRandomInt(0,5)].changeSize(simple3D_Pos_Double(1,0,0));
+                    kostky[getRandomInt(0,4)].changeSize(simple3D_Pos_Double(1,0,0));
                 }
                 if (event.key.keysym.sym == SDLK_b) {
-                    kostky[getRandomInt(0,5)].changeSize(simple3D_Pos_Double(0,0,1));
+                    kostky[getRandomInt(0,4)].changeSize(simple3D_Pos_Double(0,0,1));
                 }
             }
         }
+
+        firstPlayer.movementSDL2();
 
         SDL_RenderClear(renderer);
 
@@ -1195,11 +1302,10 @@ int main(int argc, char* argv[]) {
         std::fill(nasPixelBuffer, nasPixelBuffer + MonitorHeight * MonitorWidth, backgroundColor);
         std::fill(zBuffer, zBuffer + MonitorHeight * MonitorWidth, renderDistance);
 
-        firstPlayer.camera(kostky, nasPixelBuffer, zBuffer, bufferColorMy, true, pitch);
+        firstPlayer.camera(kostky, nasPixelBuffer, zBuffer, bufferColorMy, pitch);
 
         SDL_UnlockTexture(buffer);
         SDL_RenderCopy(renderer, buffer, NULL, NULL);
-        firstPlayer.movement();
 
         SDL_RenderPresent(renderer);
     }
