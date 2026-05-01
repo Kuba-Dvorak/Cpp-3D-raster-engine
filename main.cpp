@@ -191,7 +191,12 @@ public:
             return Position3D_Double(simple3D_Pos_Double(std::round(((myPos.x / myPos.z) * impInfo.numberAmpX) + (impInfo.screenWidth / 2)), std::round(((myPos.y / myPos.z) * impInfo.numberAmpY) + (impInfo.screenHeight / 2)), myPos.z));
         }
 
-        return Position3D_Double(simple3D_Pos_Double(-10, -10, -15));
+
+        return Position3D_Double(simple3D_Pos_Double(std::round(((myPos.x / 0.01) * impInfo.numberAmpX) + (impInfo.screenWidth / 2)), std::round(((myPos.y / 0.01) * impInfo.numberAmpY) + (impInfo.screenHeight / 2)), myPos.z));
+    }
+
+    Position3D_Double makeIntoGradiantable(screenAndCameraInfo const &impInfo) {
+        return Position3D_Double(simple3D_Pos_Double(std::round(((myPos.x / myPos.z) * impInfo.numberAmpX) + (impInfo.screenWidth / 2)), std::round(((myPos.y / myPos.z) * impInfo.numberAmpY) + (impInfo.screenHeight / 2)), 1 / myPos.z));
     }
 };
 
@@ -204,8 +209,8 @@ std::array<double, 2> getGradiantsDouble(Position3D_Double &pointA, Position3D_D
     double diffZ1 = pointB.myPos.z - pointA.myPos.z;
     double diffZ2 = pointC.myPos.z - pointB.myPos.z;
     double determinant = diffX1 * diffY2 - diffX2 * diffY1;
-    if (std::abs(determinant) <= 0.01) {
-        determinant = 0.02;
+    if (std::abs(determinant) <= 10) {
+        return {0,0};
     }
     double gradiantX = (diffY2 * diffZ1 - diffZ2 * diffY1) / (determinant);
     double gradiantY = (diffX1 * diffZ2 - diffZ1 * diffX2) / (determinant);
@@ -216,6 +221,7 @@ std::array<double, 2> getGradiantsDouble(Position3D_Double &pointA, Position3D_D
 class ScreenPolygon_Double {
 private:
     std::array<Position3D_Double, 3> points = {};
+    std::array<Position3D_Double, 3> pointsGradiantable = {};
     SimpleColor myColor = {};
 
     std::array<int, 4> minsAndMaxs(screenAndCameraInfo const &camerasInfo) {
@@ -245,10 +251,10 @@ private:
             minsAMax[3] = 0;
         }
         if (minsAMax[0] >= camerasInfo.screenWidth) {
-            minsAMax[0] = camerasInfo.screenWidth-2;
+            minsAMax[0] = camerasInfo.screenWidth-1;
         }
         if (minsAMax[1] >= camerasInfo.screenHeight) {
-            minsAMax[1] = camerasInfo.screenHeight-2;
+            minsAMax[1] = camerasInfo.screenHeight-1;
         }
         return minsAMax;
     }
@@ -375,10 +381,13 @@ private:
 
 public:
 
-    ScreenPolygon_Double(Position3D_Double point1, Position3D_Double point2, Position3D_Double point3, SimpleColor impCol) {
+    ScreenPolygon_Double(Position3D_Double point1, Position3D_Double point2, Position3D_Double point3, Position3D_Double point1G, Position3D_Double point2G, Position3D_Double point3G, SimpleColor impCol) {
         this->points[0] = point1;
         this->points[1] = point2;
         this->points[2] = point3;
+        this->pointsGradiantable[0] = point1G;
+        this->pointsGradiantable[1] = point2G;
+        this->pointsGradiantable[2] = point3G;
         this->myColor = impCol;
     }
 
@@ -390,7 +399,7 @@ public:
 
     void drawOutPolygonSDL2Fast(double* zBufferImp, uint32_t* colorsBuffer, int pitch, screenAndCameraInfo const &cameraInfo, bool outLine, SimpleColor outLineCol, int outlineThickness, bool blockification, double blockDetail) {
         std::array<int, 4> minsAmaxs = minsAndMaxs(cameraInfo);
-        std::array<double, 2> gradiant = getGradiantsDouble(points[0], points[1], points[2]);
+        std::array<double, 2> gradiant = getGradiantsDouble(pointsGradiantable[0], pointsGradiantable[1], pointsGradiantable[2]);
 
         uint32_t convertedColor = myColor.convertToBinary();
         uint32_t convertedOutLine = outLineCol.convertToBinary();
@@ -411,6 +420,10 @@ public:
 
         if (blockyfacion <= 1) {
             blockyfacion = 1;
+        }
+
+        if (blockyfacion >= 20) {
+            blockyfacion = 20;
         }
 
         if (xMajority) {
@@ -446,11 +459,11 @@ public:
                 }
 
                 if (maxX >= cameraInfo.screenWidth) {
-                    maxX = cameraInfo.screenWidth-1;
+                    maxX = cameraInfo.screenWidth;
                 }
 
                 if (minX >= cameraInfo.screenWidth) {
-                    minX = cameraInfo.screenWidth-2;
+                    minX = cameraInfo.screenWidth;
                 }
 
                 if (maxX <= 0) {
@@ -458,7 +471,7 @@ public:
                 }
 
                 for (int xPos = minX; xPos < maxX+1; xPos += 1) {
-                    double globalZ = points[2].myPos.z + (xPos - points[2].myPos.x) * gradiant[0] + (yPos - points[2].myPos.y) * gradiant[1];
+                    double globalZ = 1 / (pointsGradiantable[0].myPos.z + (xPos - pointsGradiantable[0].myPos.x) * gradiant[0] + (yPos - pointsGradiantable[0].myPos.y) * gradiant[1]);
 
                     if (blockification) {
                         for (int yPosReal = yPos; yPosReal < yPos + blockyfacion; yPosReal += 1) {
@@ -467,7 +480,7 @@ public:
                                 continue;
                             }
 
-                            if (globalZ < zBufferImp[xPos + (yPosReal * cameraInfo.screenWidth)] ) {
+                            if (globalZ < zBufferImp[xPos + (yPosReal * cameraInfo.screenWidth)] && globalZ > 0) {
                                 if (outLine && ((xPos - (outlineThickness / globalZ) < minX) || (xPos + (outlineThickness / globalZ) > maxX))) {
                                     colorsBuffer[xPos + (yPosReal * pitch)] = convertedOutLine;
                                 }
@@ -481,7 +494,7 @@ public:
 
                     else {
 
-                        if (globalZ < zBufferImp[xPos + (yPos * cameraInfo.screenWidth)] ) {
+                        if (globalZ < zBufferImp[xPos + (yPos * cameraInfo.screenWidth)] && globalZ > 0) {
                             if (outLine && ((xPos - (outlineThickness / globalZ) < minX) || (xPos + (outlineThickness / globalZ) > maxX))) {
                                 colorsBuffer[xPos + (yPos * pitch)] = convertedOutLine;
                             }
@@ -531,11 +544,11 @@ public:
                 }
 
                 if (maxY >= cameraInfo.screenHeight) {
-                    maxY = cameraInfo.screenHeight-2;
+                    maxY = cameraInfo.screenHeight;
                 }
 
                 if (minY >= cameraInfo.screenHeight) {
-                    minY = cameraInfo.screenHeight-2;
+                    minY = cameraInfo.screenHeight;
                 }
 
                 if (maxY <= 0) {
@@ -543,7 +556,7 @@ public:
                 }
 
                 for (int yPos = minY; yPos < maxY+1; yPos += 1) {
-                    double globalZ = points[2].myPos.z + (xPos - points[2].myPos.x) * gradiant[0] + (yPos - points[2].myPos.y) * gradiant[1];
+                    double globalZ = 1 / (pointsGradiantable[0].myPos.z + (xPos - pointsGradiantable[0].myPos.x) * gradiant[0] + (yPos - pointsGradiantable[0].myPos.y) * gradiant[1]);
 
                     if (blockification) {
                         for (int xPosReal = xPos; xPosReal < xPos + blockyfacion; xPosReal += 1) {
@@ -552,7 +565,7 @@ public:
                                 continue;
                             }
 
-                            if (globalZ < zBufferImp[xPosReal + (yPos * cameraInfo.screenWidth)] ) {
+                            if (globalZ < zBufferImp[xPosReal + (yPos * cameraInfo.screenWidth)] && globalZ > 0) {
                                 if (outLine && ((yPos - (outlineThickness / globalZ) < minY) || (yPos + (outlineThickness / globalZ) > maxY))) {
                                     colorsBuffer[xPosReal + (yPos * pitch)] = convertedOutLine;
                                 }
@@ -564,7 +577,7 @@ public:
                         }
                     }
                     else {
-                        if (globalZ < zBufferImp[xPos + (yPos * cameraInfo.screenWidth)] ) {
+                        if (globalZ < zBufferImp[xPos + (yPos * cameraInfo.screenWidth)] && globalZ > 0) {
                             if (outLine && ((yPos - (outlineThickness / globalZ) < minY) || (yPos + (outlineThickness / globalZ) > maxY))) {
                                 colorsBuffer[xPos + (yPos * pitch)] = convertedOutLine;
                             }
@@ -582,7 +595,7 @@ public:
     void drawOutPolygonQuickSDL2(double* zBufferImp, uint32_t* colorsBuffer, int pitch, screenAndCameraInfo const &cameraInfo, bool outLine, SimpleColor outLineCol, int outlineThickness, bool blockification, double blockDetail) {
 
         std::array<int, 4> minsAmaxs = minsAndMaxs(cameraInfo);
-        std::array<double, 2> gradiant = getGradiantsDouble(points[0], points[1], points[2]);
+        std::array<double, 2> gradiant = getGradiantsDouble(pointsGradiantable[0], pointsGradiantable[1], pointsGradiantable[2]);
 
         uint32_t convertedColor = myColor.convertToBinary();
         uint32_t convetedOutLine = outLineCol.convertToBinary();
@@ -665,7 +678,7 @@ public:
     void drawOutPolygonDouble(double* zBufferImp, SimpleColor* colorsBuffer, screenAndCameraInfo const &cameraInfo, bool outLine, SimpleColor outLineCol) {
         
         std::array<int, 4> minsAmaxs = minsAndMaxs(cameraInfo);
-        std::array<double, 2> gradiant = getGradiantsDouble(points[0], points[1], points[2]);
+        std::array<double, 2> gradiant = getGradiantsDouble(pointsGradiantable[0], pointsGradiantable[1], pointsGradiantable[2]);
         
         double outLineBoundary = (minsAmaxs[0] - minsAmaxs[2]) * (minsAmaxs[1] - minsAmaxs[3]) * 0.01;
 
@@ -868,6 +881,8 @@ private:
 
     std::vector<int> links;
     std::vector<Point_Double> points;
+    std::vector<Position3D_Double> pseudoPos;
+    std::vector<Position3D_Double> pseudoPosGradiant;
     simple3D_Pos_Double centrePoint;
     SimpleColor objectColor;
     int numsOfPoints;
@@ -909,6 +924,8 @@ public:
         for (int i = 0; i < numOfPoints; i += 1) {
             this->points.push_back(points[i]);
             this->points[i].setupUnitVectors(centrePoint);
+            this->pseudoPos.push_back(Position3D_Double(simple3D_Pos_Double()));
+            this->pseudoPosGradiant.push_back(Position3D_Double(simple3D_Pos_Double()));
         }
     }
 
@@ -1025,18 +1042,18 @@ public:
 
     void drawOutSDL2(Vector3D_Double &headingVec, Vector3D_Double &upVector, Vector3D_Double &rightVector, Position3D_Double &headingOrigin, screenAndCameraInfo &camera_info, uint32_t* colorsBuffer, int pitch, double *zBuffer, bool blockify, double detail) {
 
-        std::vector<Position3D_Double> pseudoPos;
-
         for (int i = 0; i < numsOfPoints; i += 1) {
-            pseudoPos.push_back((points[i].getRelativePos(headingVec, upVector, rightVector, headingOrigin)).makeIntoScreensCord(camera_info));
+            pseudoPos[i] = (points[i].getRelativePos(headingVec, upVector, rightVector, headingOrigin)).makeIntoScreensCord(camera_info);
+            pseudoPosGradiant[i] = (points[i].getRelativePos(headingVec, upVector, rightVector, headingOrigin)).makeIntoGradiantable(camera_info);
         }
 
         for (int i = 0; i < numsOfFaces; i += 3) {
-            if (pseudoPos[links[i]].myPos.z < 0 || pseudoPos[links[i+1]].myPos.z < 0 || pseudoPos[links[i+2]].myPos.z < 0) {
+            if (pseudoPos[links[i]].myPos.z < 0.1 && pseudoPos[links[i+1]].myPos.z < 0.1 && pseudoPos[links[i+2]].myPos.z < 0.1) {
                 continue;
             }
 
-            ScreenPolygon_Double onePolygon = ScreenPolygon_Double(pseudoPos[links[i]], pseudoPos[links[i+1]], pseudoPos[links[i+2]], objectColor);
+            ScreenPolygon_Double onePolygon = ScreenPolygon_Double(pseudoPos[links[i]], pseudoPos[links[i+1]], pseudoPos[links[i+2]],
+                pseudoPosGradiant[links[i]], pseudoPosGradiant[links[i+1]], pseudoPosGradiant[links[i+2]], objectColor);
             onePolygon.drawOutPolygonSDL2Fast(zBuffer, colorsBuffer, pitch, camera_info, stroked, outlineCol, outLineSize, blockify, detail);
         }
     }
@@ -1067,6 +1084,15 @@ Object3D_Double createCubePoints(simple3D_Pos_Double onePos, simple3D_Pos_Double
 }
 
 
+enum class ColisionsTypes {
+    xcolision = 0,
+    ycolision = 1,
+    zcolision = 2,
+    noColision = 3
+};
+
+
+
 class Player_Double {
 private:
     screenAndCameraInfo myCameraInfo;
@@ -1081,13 +1107,27 @@ private:
     bool pixelization;
     double detailLevel;
     double sizeRadius;
-    bool coliding = false;
+    bool colidingX = false;
+    bool colidingY = false;
+    bool colidingZ = false;
     simple3D_Pos_Double lastPos;
     simple3D_Pos_Double sizeBox;
-    Position3D_Double nextPosition;
+    Position3D_Double nextPositionX;
+    Position3D_Double nextPositionY;
+    Position3D_Double nextPositionZ;
+    std::array<double, 3> changes;
     double gravity;
     bool jumpingMode;
     double sestivity;
+
+    void linearColisionSetup() {
+        colidingX = false;
+        colidingY = false;
+        colidingZ = false;
+        nextPositionX = Position3D_Double(simple3D_Pos_Double(myPos.myPos.x + changes[0], myPos.myPos.y, myPos.myPos.z));
+        nextPositionY = Position3D_Double(simple3D_Pos_Double(myPos.myPos.x, myPos.myPos.y + changes[1], myPos.myPos.z));
+        nextPositionZ = Position3D_Double(simple3D_Pos_Double(myPos.myPos.x, myPos.myPos.y, myPos.myPos.z + changes[2]));
+    }
 
 public:
 
@@ -1099,34 +1139,45 @@ public:
         this->detailLevel = detaiLevel;
         this->sizeRadius = findSmallestThree({sizeBox.x, sizeBox.y, sizeBox.z});
         this->sizeBox = sizeBox;
-        this->coliding = false;
-        this->nextPosition = Position3D_Double(beginPos);
+        this->colidingX = false;
+        this->colidingY = false;
+        this->colidingZ = false;
+        this->nextPositionX = Position3D_Double(beginPos);
+        this->nextPositionY = Position3D_Double(beginPos);
+        this->nextPositionZ = Position3D_Double(beginPos);
+        this->changes = {0,0,0};
         this->gravity = gravity;
         this->jumpingMode = jumpingMode;
         this->sestivity = senstivity;
-        
+
         this->values = playerHelpfulVals(0,0);
         this->valuesUp = playerHelpfulVals(this->values.angleY,(this->values.angleZ - M_PI / 2));
         this->valuesRight = playerHelpfulVals((this->values.angleY + M_PI / 2),this->values.angleZ);
-        
+
         this->headingVec.setVector(simple3D_Pos_Double(this->values.cosAngleY * this->values.cosAngleZ, this->values.sinAngleY * this->values.cosAngleZ, this->values.sinAngleZ));
         this->rightVec.setVector(simple3D_Pos_Double(this->valuesRight.cosAngleY * this->valuesRight.cosAngleZ, this->valuesRight.sinAngleY * this->valuesRight.cosAngleZ, 0));
         this->upVec.setVector(simple3D_Pos_Double(this->valuesUp.cosAngleY * this->valuesUp.cosAngleZ, this->valuesUp.sinAngleY * this->valuesUp.cosAngleZ, this->valuesUp.sinAngleZ));
-        
+
         double radiansFOV = fov * (M_PI / 180);
         this->myCameraInfo = screenAndCameraInfo(((screenWidth / 2) / (std::tan(radiansFOV/2))) * 1.33, ((screenHeight / 2) / (std::tan(radiansFOV/2))), screenHeight, screenWidth);
     }
 
     void camera(std::vector<Object3D_Double> const &objects, uint32_t* sdlBuffer, double* zBuffer, SimpleColor* universalColorBuffer, int pitch) {
         pitch /= 4;
-        coliding = false;
+        linearColisionSetup();
         for (Object3D_Double oneObject : objects) {
             if (oneObject.visibility) {
                 oneObject.drawOutSDL2(headingVec, upVec, rightVec, myPos, myCameraInfo, sdlBuffer, pitch, zBuffer, pixelization, detailLevel);
             }
             if (oneObject.colision) {
-                if (oneObject.colide(nextPosition, sizeBox, sizeRadius)) {
-                    coliding = true;
+                if (oneObject.colide(nextPositionX, sizeBox, sizeRadius)) {
+                    colidingX = true;
+                }
+                if (oneObject.colide(nextPositionY, sizeBox, sizeRadius)) {
+                    colidingY = true;
+                }
+                if (oneObject.colide(nextPositionZ, sizeBox, sizeRadius)) {
+                    colidingZ = true;
                 }
             }
         }
@@ -1138,7 +1189,11 @@ public:
             valuesUp.changeAngleY(event.motion.xrel * sestivity);
             valuesRight.changeAngleY(event.motion.xrel * sestivity);
 
-            if (values.angleZ >= -1.4 && values.angleZ <= 1) {
+            if (values.angleZ >= -1.4 && -event.motion.yrel < 0) {
+                values.changeAngleZ(-event.motion.yrel * sestivity);
+                valuesUp.changeAngleZ(-event.motion.yrel * sestivity);
+            }
+            if (values.angleZ <= 1 && -event.motion.yrel > 0) {
                 values.changeAngleZ(-event.motion.yrel * sestivity);
                 valuesUp.changeAngleZ(-event.motion.yrel * sestivity);
             }
@@ -1151,38 +1206,90 @@ public:
     }
 
     void defaultMovementSDL2() {
+        changes[0] = 0;
+        changes[1] = 0;
+        changes[2] = 0;
         if (state[SDL_SCANCODE_W]) {
-            nextPosition.myPos.x += speed * values.cosAngleY;
-            nextPosition.myPos.y += speed * values.sinAngleY;
+            changes[0] += speed * values.cosAngleY;
+            changes[1] += speed * values.sinAngleY;
         }
         if (state[SDL_SCANCODE_S]) {
-            nextPosition.myPos.x -= speed * values.cosAngleY;
-            nextPosition.myPos.y -= speed * values.sinAngleY;
+            changes[0] += -speed * values.cosAngleY;
+            changes[1] += -speed * values.sinAngleY;
         }
         if (state[SDL_SCANCODE_D]) {
-            nextPosition.myPos.x += speed * valuesRight.cosAngleY;
-            nextPosition.myPos.y += speed * valuesRight.sinAngleY;
+            changes[0] += speed * valuesRight.cosAngleY;
+            changes[1] += speed * valuesRight.sinAngleY;
         }
         if (state[SDL_SCANCODE_A]) {
-            nextPosition.myPos.x -= speed * valuesRight.cosAngleY;
-            nextPosition.myPos.y -= speed * valuesRight.sinAngleY;
+            changes[0] += -speed * valuesRight.cosAngleY;
+            changes[1] += -speed * valuesRight.sinAngleY;
         }
         if (state[SDL_SCANCODE_SPACE]) {
-            nextPosition.myPos.z += speed;
+            changes[2] += speed;
         }
         if (state[SDL_SCANCODE_LSHIFT]) {
-            nextPosition.myPos.z -= speed;
+            changes[2] += -speed;
+        }
+    }
+
+    void gravityMovement() {
+        changes[0] = 0;
+        changes[1] = 0;
+        if (std::abs(changes[2]) <= gravity * -10) {
+            changes[2] += gravity;
+        }
+        else {
+            changes[2] = gravity * 10;
+        }
+        if (state[SDL_SCANCODE_W]) {
+            changes[0] += speed * values.cosAngleY;
+            changes[1] += speed * values.sinAngleY;
+        }
+        if (state[SDL_SCANCODE_S]) {
+            changes[0] += -speed * values.cosAngleY;
+            changes[1] += -speed * values.sinAngleY;
+        }
+        if (state[SDL_SCANCODE_D]) {
+            changes[0] += speed * valuesRight.cosAngleY;
+            changes[1] += speed * valuesRight.sinAngleY;
+        }
+        if (state[SDL_SCANCODE_A]) {
+            changes[0] += -speed * valuesRight.cosAngleY;
+            changes[1] += -speed * valuesRight.sinAngleY;
+        }
+        if (state[SDL_SCANCODE_SPACE] && colidingZ) {
+            changes[2] += speed*20;
         }
     }
 
     void movementSDL2() {
-        if (!coliding) {
-            myPos = nextPosition;
+        if (!colidingX) {
+            myPos.myPos.x += changes[0];
         }
-        if (coliding) {
-            nextPosition = myPos;
+        if (colidingX) {
+            changes[0] = 0;
         }
-        defaultMovementSDL2();
+
+        if (!colidingY) {
+            myPos.myPos.y += changes[1];
+        }
+        if (colidingY) {
+            changes[1] = 0;
+        }
+
+        if (!colidingZ) {
+            myPos.myPos.z += changes[2];
+        }
+        if (colidingZ) {
+            changes[2] = 0;
+        }
+        if (!jumpingMode) {
+            defaultMovementSDL2();
+        }
+        if (jumpingMode) {
+            gravityMovement();
+        }
     }
 };
 
@@ -1225,10 +1332,10 @@ int main(int argc, char* argv[]) {
     SDL_Event event;
     SDL_SetRelativeMouseMode(SDL_TRUE);
 
-    Player_Double firstPlayer = Player_Double(0.5,MonitorHeight,MonitorWidth,90, simple3D_Pos_Double(0,0,0), true, 0.1);
+    Player_Double firstPlayer = Player_Double(0.5,MonitorHeight,MonitorWidth,90, simple3D_Pos_Double(0,0,0), true, 1, simple3D_Pos_Double(5,5,5), -0.1, true);
 
     std::vector<Object3D_Double> kostky = {};
-    for (int i = 0; i < 12; i += 1) {
+    for (int i = 0; i < 3; i += 1) {
         kostky.push_back(createCubePoints(simple3D_Pos_Double(getRandomDouble(-35,35),getRandomDouble(-35,35),getRandomDouble(-35,35)), simple3D_Pos_Double(getRandomDouble(2,10),getRandomDouble(2,10),getRandomDouble(2,10)),
             SimpleColor(getRandomInt(1,255),getRandomInt(1,255),getRandomInt(1,255)), SimpleColor(0, 0, 0), false, 50, true, true));
     }
@@ -1236,6 +1343,7 @@ int main(int argc, char* argv[]) {
     kostky.push_back(createCubePoints(simple3D_Pos_Double(5,10,3), simple3D_Pos_Double(2,3,1), SimpleColor(250,0,0), SimpleColor(0, 0, 0), false, 50, true, true));
     kostky.push_back(createCubePoints(simple3D_Pos_Double(2,15,13), simple3D_Pos_Double(2,3,1), SimpleColor(250,0,0), SimpleColor(0, 0, 0), false, 50, true, true));
     kostky.push_back(createCubePoints(simple3D_Pos_Double(12,15,13), simple3D_Pos_Double(2,3,3), SimpleColor(250,120,0), SimpleColor(0, 0, 0), false, 50, true, true));
+    kostky.push_back(createCubePoints(simple3D_Pos_Double(-10,-10,-10), simple3D_Pos_Double(50,50,3), SimpleColor(0,150,0), SimpleColor(0, 0, 0), false, 50, true, true));
 
     double renderDistance = 800;
 
