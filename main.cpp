@@ -88,7 +88,7 @@ public:
     }
 
     Vector3D_Double crossProduct3D(Vector3D_Double &secondVec) {
-        return Vector3D_Double(simple3D_Pos_Double((myPos.y * secondVec.myPos.z) - (myPos.z * secondVec.myPos.y), (myPos.x * secondVec.myPos.z) - (myPos.z * secondVec.myPos.x), (myPos.x * secondVec.myPos.y) - (myPos.y * secondVec.myPos.x)));
+        return Vector3D_Double(simple3D_Pos_Double((myPos.y * secondVec.myPos.z) - (myPos.z * secondVec.myPos.y), (myPos.z * secondVec.myPos.x) - (myPos.x * secondVec.myPos.z), (myPos.x * secondVec.myPos.y) - (myPos.y * secondVec.myPos.x)));
     }
 
     double getDeterminant(Vector3D_Double &normal, Vector3D_Double &headingVec) {
@@ -1033,11 +1033,6 @@ private:
         dislayedColor = newColor;
     }
 
-    void myScreenVerRetype(screenAndCameraInfo &cameraInfo, bool blockification, double blockDetail) {
-        myScreenVer = ScreenPolygon_Double(definingLocalPoints[0], definingLocalPoints[1], definingLocalPoints[2], definingGradiantablePoints[0], definingGradiantablePoints[1], definingGradiantablePoints[2]);
-        myScreenVer.prepresentAssets(cameraInfo, outlineColor, dislayedColor, blockification, blockDetail);
-    }
-
 public:
 
     GlobalPolygon_Double(std::array<Point_Double, 3> definingGlobalPoints, std::array<Position3D_Double, 3> definingLocalPoints, std::array<Position3D_Double, 3> definingGradiantablePoints, SimpleColor impCol, int index, bool drawOut) {
@@ -1067,7 +1062,11 @@ public:
         lightingVectors[1] = definingGlobalPoints[0].getPosRef().makeAVector(definingGlobalPoints[2].getPosRef());
         mainNormal = lightingVectors[0].crossProduct3D(lightingVectors[1]);
         shouldDraw = drawOut;
-        myScreenVerRetype(cameraInfo, blockification, blockDetail);
+    }
+
+    void myScreenVerRetype(screenAndCameraInfo &cameraInfo, bool blockification, double blockDetail) {
+        myScreenVer = ScreenPolygon_Double(definingLocalPoints[0], definingLocalPoints[1], definingLocalPoints[2], definingGradiantablePoints[0], definingGradiantablePoints[1], definingGradiantablePoints[2]);
+        myScreenVer.prepresentAssets(cameraInfo, outlineColor, dislayedColor, blockification, blockDetail);
     }
 
     void playerChange(std::array<Position3D_Double, 3> newdefiningLocalPoints, std::array<Position3D_Double, 3> newdefiningGradiantablePoints, screenAndCameraInfo &cameraInfo, bool blockification, double blockDetail, bool drawOut) {
@@ -1115,10 +1114,10 @@ public:
     }
 
     void lightingDuty(LightRay_Double &lightPoint, int curentPos) {
-        Vector3D_Double pointVec = definingGlobalPoints[0].getPosRef().makeAVector(lightPoint.myPos);
+        Vector3D_Double pointVec = lightPoint.myPos.makeAVector(definingGlobalPoints[0].getPosRef());
         double mainDeterminant = mainNormal.dotProduct(lightPoint.headingVec);
         Vector3D_Double secondaryNormal = pointVec.crossProduct3D(lightPoint.headingVec);
-        if (std::abs(mainDeterminant) < 0.1) {
+        if (mainDeterminant > -0.01) {
             return;
         }
         double countingNum = 1.0 / mainDeterminant;
@@ -1138,10 +1137,10 @@ public:
     }
 
     double lightingRetLenght(LightRay_Double &lightPoint, double renderDistance) {
-        Vector3D_Double pointVec = definingGlobalPoints[0].getPosRef().makeAVector(lightPoint.myPos);
+        Vector3D_Double pointVec = lightPoint.myPos.makeAVector(definingGlobalPoints[0].getPosRef());
         double mainDeterminant = mainNormal.dotProduct(lightPoint.headingVec);
         Vector3D_Double secondaryNormal = pointVec.crossProduct3D(lightPoint.headingVec);
-        if (std::abs(mainDeterminant) < 0.1) {
+        if (mainDeterminant > -0.01) {
             return renderDistance;
         }
         double countingNum = 1.0 / mainDeterminant;
@@ -1169,8 +1168,6 @@ private:
     int rayNumber, objectNum;
     double intezity, lenghtDecay;
     double sourceHeight, sourceWidth;
-    bool representativeBlock;
-    int blockIdMin, blockIdMax;
 
     void spehereVec(double intezity, double lenghtDecay) {
         double fibonnaciAngle = M_PI * (3 - sqrt(5));
@@ -1206,23 +1203,21 @@ private:
                 double quickDiff2 = j * diffX;
                 simple3D_Pos_Double rightPos = simple3D_Pos_Double(quickDiff2 * directionRight.myPos.x, quickDiff2 * directionRight.myPos.y, quickDiff2 * directionRight.myPos.z);
                 Position3D_Double onePos = Position3D_Double(myPos.changedBy(simple3D_Pos_Double(heightPos.x + rightPos.x, heightPos.y + rightPos.y, heightPos.z + rightPos.z)));
-                lightSources[(i * numberB) + j] = LightRay_Double(onePos, intezity, myColor, normal, lenghtDecay, (lenghtDecay * 500) * intezity);
+                lightSources[(i * numberA) + j] = LightRay_Double(onePos, intezity, myColor, normal, lenghtDecay, (lenghtDecay * 500) * intezity);
             }
         }
     }
 
-    void lightingCycle( std::vector<GlobalPolygon_Double> &allPolygons) {
+    void resetLights(std::vector<GlobalPolygon_Double> &allPolygons) {
         for (int i = 0; i < allPolygons.size(); i += 1) {
             allPolygons[i].rollBackColor();
+        }
+    }
+
+    void lightingCycle(std::vector<GlobalPolygon_Double> &allPolygons) {
+        for (int i = 0; i < allPolygons.size(); i += 1) {
             for (int j = 0; j < rayNumber; j += 1) {
-                if (representativeBlock) {
-                    if (i <= blockIdMin && i > blockIdMax) {
-                        allPolygons[i].lightingDuty(lightSources[j], i);
-                    }
-                }
-                else {
-                    allPolygons[i].lightingDuty(lightSources[j], i);
-                }
+                allPolygons[i].lightingDuty(lightSources[j], i);
             }
         }
         for (int i = 0; i < rayNumber; i += 1) {
@@ -1237,7 +1232,7 @@ private:
 public:
 
     LightSource(LightTypes lightType, Position3D_Double impPos, int rayNumber, SimpleColor impCol,
-        std::vector<GlobalPolygon_Double> &allPolygons, double intezity, double lenghtDecay, int curPolygon, bool cubeAround = true,
+        std::vector<GlobalPolygon_Double> &allPolygons, std::vector<LightSource> &allLights, double intezity, double lenghtDecay,
         Vector3D_Double directionRight = Vector3D_Double(simple3D_Pos_Double(0,0,0)), Vector3D_Double directionUp = Vector3D_Double(simple3D_Pos_Double(0,0,0)), double sourceHeight = 0, double sourceWidth = 0) {
         this->myType = lightType;
         this->myPos = impPos;
@@ -1250,28 +1245,44 @@ public:
         this->lenghtDecay = lenghtDecay;
         this->sourceHeight = sourceHeight;
         this->sourceWidth = sourceWidth;
-        this->representativeBlock = cubeAround;
-        this->blockIdMin = curPolygon;
-        this->blockIdMax = curPolygon + 12;
 
         this->objectNum = allPolygons.size();
-        emitLight(allPolygons, directionRight, directionUp);
+        emitLight(allPolygons, allLights,directionRight, directionUp);
     }
 
-    void emitLight(std::vector<GlobalPolygon_Double> &allPolygons, Vector3D_Double directionRight = Vector3D_Double(simple3D_Pos_Double(0,0,0)), Vector3D_Double directionUp = Vector3D_Double(simple3D_Pos_Double(0,0,0))) {
-        if (myType == LightTypes::pointLike) {
-            spehereVec(intezity, lenghtDecay);
-            lightingCycle(allPolygons);
-        }
+    void emitLight(std::vector<GlobalPolygon_Double> &allPolygons, std::vector<LightSource> &allLights, Vector3D_Double directionRight = Vector3D_Double(simple3D_Pos_Double(0,0,0)), Vector3D_Double directionUp = Vector3D_Double(simple3D_Pos_Double(0,0,0))) {
+        resetLights(allPolygons);
         if (myType == LightTypes::paralel) {
             polygonVec(intezity, lenghtDecay, sourceHeight, sourceWidth, directionRight, directionUp);
-            lightingCycle(allPolygons);
+        }
+        if (myType == LightTypes::pointLike) {
+            spehereVec(intezity, lenghtDecay);
+        }
+        for (LightSource &oneLight : allLights) {
+            oneLight.lightingCycle(allPolygons);
         }
     }
 
-    void changePos(simple3D_Pos_Double newPos, std::vector<GlobalPolygon_Double> &allPolygons, Vector3D_Double directionRight = Vector3D_Double(simple3D_Pos_Double(0,0,0)), Vector3D_Double directionUp = Vector3D_Double(simple3D_Pos_Double(0,0,0))) {
+    void changePos(simple3D_Pos_Double newPos, std::vector<GlobalPolygon_Double> &allPolygons, std::vector<LightSource> &allLights, Vector3D_Double directionRight = Vector3D_Double(simple3D_Pos_Double(0,0,0)), Vector3D_Double directionUp = Vector3D_Double(simple3D_Pos_Double(0,0,0))) {
         myPos.myPos = newPos;
-        emitLight(allPolygons, directionRight, directionUp);
+        emitLight(allPolygons, allLights, directionRight, directionUp);
+    }
+
+    void movePos(simple3D_Pos_Double newPos, std::vector<GlobalPolygon_Double> &allPolygons, std::vector<LightSource> &allLights, Vector3D_Double directionRight = Vector3D_Double(simple3D_Pos_Double(0,0,0)), Vector3D_Double directionUp = Vector3D_Double(simple3D_Pos_Double(0,0,0))) {
+        myPos.myPos.x += newPos.x;
+        myPos.myPos.y += newPos.y;
+        myPos.myPos.z += newPos.z;
+        emitLight(allPolygons, allLights, directionRight, directionUp);
+    }
+
+    void changeDirection(std::vector<GlobalPolygon_Double> &allPolygons, std::vector<LightSource> &allLights, Vector3D_Double directionRight = Vector3D_Double(simple3D_Pos_Double(0,0,0)), Vector3D_Double directionUp = Vector3D_Double(simple3D_Pos_Double(0,0,0))) {
+        emitLight(allPolygons, allLights, directionRight, directionUp);
+    }
+
+    void changeSize(std::vector<GlobalPolygon_Double> &allPolygons, std::vector<LightSource> &allLights, double newHeight, double newWidth, Vector3D_Double directionRight = Vector3D_Double(simple3D_Pos_Double(0,0,0)), Vector3D_Double directionUp = Vector3D_Double(simple3D_Pos_Double(0,0,0))) {
+        sourceHeight = newHeight;
+        sourceWidth = newWidth;
+        emitLight(allPolygons, allLights, directionRight, directionUp);
     }
     
     void oneBlockUpdate(std::vector<GlobalPolygon_Double> &allPolygons, int polygonIndex) {
@@ -1454,13 +1465,55 @@ private:
                 {pseudoPosGradiant[links[i]], pseudoPosGradiant[links[i+1]], pseudoPosGradiant[links[i+2]]},
                 myInfo.cameraInfo, myInfoLOD.blockify , myInfoLOD.LODLevel, dontDrawOut);
 
+            globalPolygons[indexNum].rollBackColor();
+
             for (LightSource &oneLight : allLights) {
-                oneLight.oneBlockUpdate(globalPolygons, indexNum);
+                oneLight.emitLight(globalPolygons, allLights);
             }
+
+            globalPolygons[indexNum].myScreenVerRetype(myInfo.cameraInfo, myInfoLOD.blockify , myInfoLOD.LODLevel);
 
             indexNum += 1;
 
             dontDrawOut = false;
+        }
+    }
+
+    void accualRotation(double cosAngleXY = 1, double cosAngleXZ = 1, double cosAngleYZ = 1, double sinAngleXY = 0, double sinAngleXZ = 0, double sinAngleYZ = 0) {
+        centreVec[0] = Vector3D_Double(simple3D_Pos_Double(
+                (centreVec[0].myPos.x * cosAngleXY - centreVec[0].myPos.y * sinAngleXY) * cosAngleXZ - centreVec[0].myPos.z * sinAngleXZ,
+                (centreVec[0].myPos.y * cosAngleXY + centreVec[0].myPos.x * sinAngleXY) * cosAngleYZ - centreVec[0].myPos.z * sinAngleYZ,
+                (centreVec[0].myPos.z * cosAngleXZ + centreVec[0].myPos.x * sinAngleXZ) * cosAngleYZ + centreVec[0].myPos.y * sinAngleYZ));
+
+        centreVec[1] = Vector3D_Double(simple3D_Pos_Double(
+                (centreVec[1].myPos.x * cosAngleXY - centreVec[1].myPos.y * sinAngleXY) * cosAngleXZ - centreVec[1].myPos.z * sinAngleXZ,
+                (centreVec[1].myPos.y * cosAngleXY + centreVec[1].myPos.x * sinAngleXY) * cosAngleYZ - centreVec[1].myPos.z * sinAngleYZ,
+                (centreVec[1].myPos.z * cosAngleXZ + centreVec[1].myPos.x * sinAngleXZ) * cosAngleYZ + centreVec[1].myPos.y * sinAngleYZ));
+
+        centreVec[2] = Vector3D_Double(simple3D_Pos_Double(
+                (centreVec[2].myPos.x * cosAngleXY - centreVec[2].myPos.y * sinAngleXY) * cosAngleXZ - centreVec[2].myPos.z * sinAngleXZ,
+                (centreVec[2].myPos.y * cosAngleXY + centreVec[2].myPos.x * sinAngleXY) * cosAngleYZ - centreVec[2].myPos.z * sinAngleYZ,
+                (centreVec[2].myPos.z * cosAngleXZ + centreVec[2].myPos.x * sinAngleXZ) * cosAngleYZ + centreVec[2].myPos.y * sinAngleYZ));
+
+        for (int i = 0; i < numsOfPoints; i += 1) {
+            // 1. XY rotation, 2. XZ rotation, 3. YZ rotation
+
+            points[i].xVector = simple3D_Pos_Double(
+                (points[i].xVector.x * cosAngleXY - points[i].xVector.y * sinAngleXY) * cosAngleXZ - points[i].xVector.z * sinAngleXZ,
+                (points[i].xVector.y * cosAngleXY + points[i].xVector.x * sinAngleXY) * cosAngleYZ - points[i].xVector.z * sinAngleYZ,
+                (points[i].xVector.z * cosAngleXZ + points[i].xVector.x * sinAngleXZ) * cosAngleYZ + points[i].xVector.y * sinAngleYZ);
+
+            points[i].yVector = simple3D_Pos_Double(
+                (points[i].yVector.x * cosAngleXY - points[i].yVector.y * sinAngleXY) * cosAngleXZ - points[i].yVector.z * sinAngleXZ,
+                (points[i].yVector.y * cosAngleXY + points[i].yVector.x * sinAngleXY) * cosAngleYZ - points[i].yVector.z * sinAngleYZ,
+                (points[i].yVector.z * cosAngleXZ + points[i].yVector.x * sinAngleXZ) * cosAngleYZ + points[i].yVector.y * sinAngleYZ);
+
+            points[i].zVector = simple3D_Pos_Double(
+                (points[i].zVector.x * cosAngleXY - points[i].zVector.y * sinAngleXY) * cosAngleXZ - points[i].zVector.z * sinAngleXZ,
+                (points[i].zVector.y * cosAngleXY + points[i].zVector.x * sinAngleXY) * cosAngleYZ - points[i].zVector.z * sinAngleYZ,
+                (points[i].zVector.z * cosAngleXZ + points[i].zVector.x * sinAngleXZ) * cosAngleYZ + points[i].zVector.y * sinAngleYZ);
+            updatePoses(i);
+
         }
     }
 
@@ -1555,48 +1608,10 @@ public:
                 centrePoint.z + (points[i].xVector.z * objectSize.x) + (points[i].yVector.z * objectSize.y) + (points[i].zVector.z * objectSize.z)));
     }
 
-    void rotates(double angleYZ, double angleXZ, double angleXY, playerFullInfo &playInfo, std::vector<GlobalPolygon_Double> &allPolygons, std::vector<LightSource> allLights) {
-        double cosAngleYZ = std::cos(angleYZ);
-        double sinAngleYZ = std::sin(angleYZ);
-        double cosAngleXY = std::cos(angleXY);
-        double sinAngleXY = std::sin(angleXY);
-        double cosAngleXZ = std::cos(angleXZ);
-        double sinAngleXZ = std::sin(angleXZ);
-        centreVec[0] = Vector3D_Double(simple3D_Pos_Double(
-                (centreVec[0].myPos.x * cosAngleXY - centreVec[0].myPos.y * sinAngleXY) * cosAngleXZ - centreVec[0].myPos.z * sinAngleXZ,
-                (centreVec[0].myPos.y * cosAngleXY + centreVec[0].myPos.x * sinAngleXY) * cosAngleYZ - centreVec[0].myPos.z * sinAngleYZ,
-                (centreVec[0].myPos.z * cosAngleXZ + centreVec[0].myPos.x * sinAngleXZ) * cosAngleYZ + centreVec[0].myPos.y * sinAngleYZ));
-
-        centreVec[1] = Vector3D_Double(simple3D_Pos_Double(
-                (centreVec[1].myPos.x * cosAngleXY - centreVec[1].myPos.y * sinAngleXY) * cosAngleXZ - centreVec[1].myPos.z * sinAngleXZ,
-                (centreVec[1].myPos.y * cosAngleXY + centreVec[1].myPos.x * sinAngleXY) * cosAngleYZ - centreVec[1].myPos.z * sinAngleYZ,
-                (centreVec[1].myPos.z * cosAngleXZ + centreVec[1].myPos.x * sinAngleXZ) * cosAngleYZ + centreVec[1].myPos.y * sinAngleYZ));
-
-        centreVec[2] = Vector3D_Double(simple3D_Pos_Double(
-                (centreVec[2].myPos.x * cosAngleXY - centreVec[2].myPos.y * sinAngleXY) * cosAngleXZ - centreVec[2].myPos.z * sinAngleXZ,
-                (centreVec[2].myPos.y * cosAngleXY + centreVec[2].myPos.x * sinAngleXY) * cosAngleYZ - centreVec[2].myPos.z * sinAngleYZ,
-                (centreVec[2].myPos.z * cosAngleXZ + centreVec[2].myPos.x * sinAngleXZ) * cosAngleYZ + centreVec[2].myPos.y * sinAngleYZ));
-
-        for (int i = 0; i < numsOfPoints; i += 1) {
-            // 1. XY rotation, 2. XZ rotation, 3. YZ rotation
-
-            points[i].xVector = simple3D_Pos_Double(
-                (points[i].xVector.x * cosAngleXY - points[i].xVector.y * sinAngleXY) * cosAngleXZ - points[i].xVector.z * sinAngleXZ,
-                (points[i].xVector.y * cosAngleXY + points[i].xVector.x * sinAngleXY) * cosAngleYZ - points[i].xVector.z * sinAngleYZ,
-                (points[i].xVector.z * cosAngleXZ + points[i].xVector.x * sinAngleXZ) * cosAngleYZ + points[i].xVector.y * sinAngleYZ);
-            
-            points[i].yVector = simple3D_Pos_Double(
-                (points[i].yVector.x * cosAngleXY - points[i].yVector.y * sinAngleXY) * cosAngleXZ - points[i].yVector.z * sinAngleXZ,
-                (points[i].yVector.y * cosAngleXY + points[i].yVector.x * sinAngleXY) * cosAngleYZ - points[i].yVector.z * sinAngleYZ,
-                (points[i].yVector.z * cosAngleXZ + points[i].yVector.x * sinAngleXZ) * cosAngleYZ + points[i].yVector.y * sinAngleYZ);
-            
-            points[i].zVector = simple3D_Pos_Double(
-                (points[i].zVector.x * cosAngleXY - points[i].zVector.y * sinAngleXY) * cosAngleXZ - points[i].zVector.z * sinAngleXZ,
-                (points[i].zVector.y * cosAngleXY + points[i].zVector.x * sinAngleXY) * cosAngleYZ - points[i].zVector.z * sinAngleYZ,
-                (points[i].zVector.z * cosAngleXZ + points[i].zVector.x * sinAngleXZ) * cosAngleYZ + points[i].zVector.y * sinAngleYZ);
-            updatePoses(i);
-            
-        }
+    void rotates(double angleYZ, double angleXZ, double angleXY, playerFullInfo &playInfo, std::vector<GlobalPolygon_Double> &allPolygons, std::vector<LightSource> &allLights) {
+        accualRotation(std::cos(angleXY), 1, 1, std::sin(angleXY));
+        accualRotation(1, std::cos(angleXZ), 1, 0, std::sin(angleXZ));
+        accualRotation(1, 1, std::cos(angleYZ), 0, 0, std::sin(angleYZ));
         retypePolygonsThis(playInfo, allPolygons, allLights);
     }
 
@@ -1608,7 +1623,7 @@ public:
         return centrePoint;
     }
 
-    void setPos(simple3D_Pos_Double changePos, playerFullInfo &playInfo, std::vector<GlobalPolygon_Double> &allPolygons, std::vector<LightSource> allLights) {
+    void setPos(simple3D_Pos_Double changePos, playerFullInfo &playInfo, std::vector<GlobalPolygon_Double> &allPolygons, std::vector<LightSource> &allLights) {
         centrePoint = changePos;
 
         for (int i = 0; i < numsOfPoints; i += 1) {
@@ -1617,7 +1632,7 @@ public:
         retypePolygonsThis(playInfo, allPolygons, allLights);
     }
 
-    void changePos(simple3D_Pos_Double changePos, playerFullInfo &playInfo, std::vector<GlobalPolygon_Double> &allPolygons, std::vector<LightSource> allLights) {
+    void changePos(simple3D_Pos_Double changePos, playerFullInfo &playInfo, std::vector<GlobalPolygon_Double> &allPolygons, std::vector<LightSource> &allLights) {
         centrePoint.x += changePos.x;
         centrePoint.y += changePos.y;
         centrePoint.z += changePos.z;
@@ -1628,7 +1643,7 @@ public:
         retypePolygonsThis(playInfo, allPolygons, allLights);
     }
 
-    void setSize(simple3D_Pos_Double newSize, playerFullInfo &playInfo, std::vector<GlobalPolygon_Double> &allPolygons, std::vector<LightSource> allLights) {
+    void setSize(simple3D_Pos_Double newSize, playerFullInfo &playInfo, std::vector<GlobalPolygon_Double> &allPolygons, std::vector<LightSource> &allLights) {
         objectSize = newSize;
         for (int i = 0; i < numsOfPoints; i += 1) {
             updatePoses(i);
@@ -1638,7 +1653,7 @@ public:
         retypePolygonsThis(playInfo, allPolygons, allLights);
     }
 
-    void changeSize(simple3D_Pos_Double newSize, playerFullInfo &playInfo, std::vector<GlobalPolygon_Double> &allPolygons, std::vector<LightSource> allLights) {
+    void changeSize(simple3D_Pos_Double newSize, playerFullInfo &playInfo, std::vector<GlobalPolygon_Double> &allPolygons, std::vector<LightSource> &allLights) {
         objectSize.x += newSize.x;
         objectSize.y += newSize.y;
         objectSize.z += newSize.z;
@@ -1668,7 +1683,7 @@ public:
 
 void createCube(simple3D_Pos_Double onePos, simple3D_Pos_Double oneSize, SimpleColor objColor, SimpleColor outColor, bool stroked, std::vector<GlobalPolygon_Double> &allPolygons, int &currentPolygon, std::vector<LightSource> &allLights,
     std::vector<Object3D_Double> &allObjects, playerFullInfo &currentPlayerInfo,
-    double outlineSize, bool colisions = false, bool visibility = false, bool blockify = true, double lodLevel = 0.1) {
+    double outlineSize = 10, bool colisions = false, bool visibility = false, bool blockify = true, double lodLevel = 0.1) {
 
     simple3D_Pos_Double centre = simple3D_Pos_Double(onePos.x + (oneSize.x/2), onePos.y + (oneSize.y/2), onePos.z + (oneSize.z/2));
 
@@ -1694,8 +1709,9 @@ void createCube(simple3D_Pos_Double onePos, simple3D_Pos_Double oneSize, SimpleC
 
 
 void createLight(std::vector<LightSource> &allLights, std::vector<GlobalPolygon_Double> &allPolygons, LightTypes type, Position3D_Double impPos, int rayNumber, SimpleColor color,
-    double intenzity, double lenghtDecay, Vector3D_Double directionRight = Vector3D_Double(simple3D_Pos_Double(0,0,0)), Vector3D_Double directionUp = Vector3D_Double(simple3D_Pos_Double(0,0,0)), double sourceHeight = 0, double sourceWidth = 0) {
-    allLights.push_back(LightSource(type, impPos, rayNumber, color, allPolygons, intenzity, lenghtDecay, directionRight, directionUp, sourceHeight, sourceWidth));
+    double intenzity, double lenghtDecay, Vector3D_Double directionRight = Vector3D_Double(simple3D_Pos_Double(0,0,0)), Vector3D_Double directionUp = Vector3D_Double(simple3D_Pos_Double(0,0,0)),
+    double sourceHeight = 0, double sourceWidth = 0) {
+    allLights.push_back(LightSource(type, impPos, rayNumber, color, allPolygons, allLights, intenzity, lenghtDecay,directionRight, directionUp, sourceHeight, sourceWidth));
 }
 
 
@@ -1729,7 +1745,6 @@ struct basicInfo {
         this->currePosPolygon = 0;
     }
 };
-
 
 
 class Player_Double {
@@ -1946,15 +1961,6 @@ public:
 };
 
 
-uint32_t convertToBinary(int red, int green, int blue) {
-    uint32_t finalColor = 0xff000000;
-    finalColor |= red << 16;
-    finalColor |= green << 8;
-    finalColor |= blue;
-    return finalColor;
-}
-
-
 class gameInfo {
 private:
     SDL_Window* window;
@@ -1972,8 +1978,11 @@ public:
     uint32_t backgroundColor;
     const Uint8* myState = SDL_GetKeyboardState(NULL);
     const Uint32 mouseState = SDL_GetMouseState(NULL,NULL);
+    bool blockify;
+    double lodLevel;
+    SDL_Event event;
 
-    gameInfo(int windowWidth, int windowHeight, char *windowName, double renderDistance, SimpleColor backgroundColor) {
+    gameInfo(int windowWidth, int windowHeight, char *windowName, double renderDistance = 800, SimpleColor backgroundColor = SimpleColor(0,0,255), bool blockify = true, double lodLevel = 0.5) {
         if (SDL_Init(SDL_INIT_VIDEO) < 0) {
             std::cout << "SDL hasn`t inicilized, error code: " << SDL_GetError() << std::endl;
         }
@@ -1995,6 +2004,9 @@ public:
         this->renderDistance = renderDistance;
         this->colorBuffer = nullptr;
         this->backgroundColor = backgroundColor.convertToBinary();
+        this->lodLevel = lodLevel;
+        this->blockify = blockify;
+        this->event;
     }
 
     void drawScene(Player_Double &player) {
@@ -2013,11 +2025,39 @@ public:
         SDL_RenderPresent(renderer);
     }
 
-    void end() {
-        SDL_DestroyRenderer(renderer);
-        SDL_DestroyWindow(window);
-        std::free(zBuffer);
-        SDL_Quit();
+    void mouseLock(bool enable) {
+        if (enable) {
+            SDL_SetRelativeMouseMode(SDL_TRUE);
+        }
+        if (!enable) {
+            SDL_SetRelativeMouseMode(SDL_FALSE);
+        }
+    }
+
+    bool isKeyPressed(SDL_KeyCode lookingKey) {
+        if (event.type == SDL_KEYDOWN) {
+            if (event.key.keysym.sym == lookingKey) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool turnOffButton() {
+        if (event.type == SDL_QUIT) {
+            return true;
+        }
+        return false;
+    }
+
+    void playerCameraMovement(Player_Double &player) {
+        while (SDL_PollEvent(&event)) {
+            player.cameraMovementSDL2(event, gameGlobals);
+        }
+    }
+
+    void playerMovement(Player_Double &player) {
+        player.movementSDL2(gameGlobals, myState);
     }
 
     ~gameInfo() {
@@ -2029,66 +2069,81 @@ public:
 };
 
 
+void createBasicCube(gameInfo &scene, Player_Double &player, simple3D_Pos_Double position = simple3D_Pos_Double(0,0,0), simple3D_Pos_Double size = simple3D_Pos_Double(1,1,1), SimpleColor color = SimpleColor(0,0,0),
+    SimpleColor outlineColor = SimpleColor(0,0,0), bool outline = false, double outlineSize = 10, bool colisions = false, bool visibility = true) {
+    createCube(position, size, color, outlineColor, outline, scene.gameGlobals.polygonList, scene.gameGlobals.currePosPolygon, scene.gameGlobals.lightSourcesList, scene.gameGlobals.objectList,
+        player.myBasicInfo, outlineSize, colisions, visibility, scene.blockify, scene.lodLevel);
+}
+
+
+void rotateBasicCube(gameInfo &scene, int cubeIndex, Player_Double &player, double angleXY = 0, double angleXZ = 0, double angleYZ = 0) {
+    scene.gameGlobals.objectList[cubeIndex].rotates(angleYZ, angleXZ, angleXY, player.myBasicInfo, scene.gameGlobals.polygonList, scene.gameGlobals.lightSourcesList);
+}
+
+
+void moveBasicCube(gameInfo &scene, int cubeIndex, Player_Double &player, simple3D_Pos_Double difference = simple3D_Pos_Double(0,0,0)) {
+    scene.gameGlobals.objectList[cubeIndex].changePos(difference,player.myBasicInfo, scene.gameGlobals.polygonList, scene.gameGlobals.lightSourcesList);
+}
+
+
+void setPosBasicCube(gameInfo &scene, int cubeIndex, Player_Double &player, simple3D_Pos_Double newPosition = simple3D_Pos_Double(0,0,0)) {
+    scene.gameGlobals.objectList[cubeIndex].setPos(newPosition,player.myBasicInfo, scene.gameGlobals.polygonList, scene.gameGlobals.lightSourcesList);
+}
+
+
+void changeSizeBasicCube(gameInfo &scene, int cubeIndex, Player_Double &player, simple3D_Pos_Double difference = simple3D_Pos_Double(0,0,0)) {
+    scene.gameGlobals.objectList[cubeIndex].changeSize(difference,player.myBasicInfo, scene.gameGlobals.polygonList, scene.gameGlobals.lightSourcesList);
+}
+
+
+void setSizeBasicCube(gameInfo &scene, int cubeIndex, Player_Double &player, simple3D_Pos_Double newSize = simple3D_Pos_Double(1,1,1)) {
+    scene.gameGlobals.objectList[cubeIndex].setSize(newSize,player.myBasicInfo, scene.gameGlobals.polygonList, scene.gameGlobals.lightSourcesList);
+}
+
+
+void createBasicLight(gameInfo &scene, simple3D_Pos_Double position = simple3D_Pos_Double(0,0,0), SimpleColor color = SimpleColor(0,0,0), int rayNumber = 15, double intenzity = 0.5, double lengDecay = 1) {
+    createLight(scene.gameGlobals.lightSourcesList, scene.gameGlobals.polygonList, LightTypes::pointLike, position, rayNumber, color, intenzity, lengDecay);
+}
+
+
+void moveBasicLight(gameInfo &scene, int lightIndex, simple3D_Pos_Double difference = simple3D_Pos_Double(0,0,0)) {
+    scene.gameGlobals.lightSourcesList[lightIndex].movePos(difference,scene.gameGlobals.polygonList, scene.gameGlobals.lightSourcesList);
+}
+
+
+void setPosBasicLight(gameInfo &scene, int lightIndex, simple3D_Pos_Double newPos = simple3D_Pos_Double(0,0,0)) {
+    scene.gameGlobals.lightSourcesList[lightIndex].changePos(newPos,scene.gameGlobals.polygonList, scene.gameGlobals.lightSourcesList);
+}
+
+
+Player_Double createBasicPlayer(gameInfo &scene, int fov = 90, double senstivity = 0.001, double speed = 0.2, double gravity = 0, bool gravityMode = false, simple3D_Pos_Double beginPos = simple3D_Pos_Double(0,0,0),
+    simple3D_Pos_Double colisionBox = simple3D_Pos_Double(4,4,4)) {
+    scene.mouseLock(true);
+    return Player_Double(speed, scene.height, scene.width, fov, beginPos, scene.blockify, scene.lodLevel, colisionBox, gravity, gravityMode, senstivity);
+}
+
+
 int main(int argc, char* argv[]) {
     bool running = true;
 
-    gameInfo game = gameInfo(2560, 1440, "Super hra", 800, SimpleColor(0,0,255));
+    gameInfo game = gameInfo(2560, 1440, "Super hra");
 
-    SDL_Event event;
-    SDL_SetRelativeMouseMode(SDL_TRUE);
+    Player_Double myPlayer = createBasicPlayer(game);
 
-    Player_Double myPlayer = Player_Double(0.5, 1440, 2560, 90, simple3D_Pos_Double(10,10,10));
-
-    for (int i = 0; i < 22; i += 1) {
-        createCube(simple3D_Pos_Double(getRandomDouble(-35,35),getRandomDouble(-35,35),getRandomDouble(-35,35)), simple3D_Pos_Double(getRandomDouble(2,15),getRandomDouble(2,15),getRandomDouble(2,15)),
-            SimpleColor(getRandomInt(0,50),getRandomInt(0,50),getRandomInt(0,50)), SimpleColor(0,0,0), false,
-        game.gameGlobals.polygonList, game.gameGlobals.currePosPolygon, game.gameGlobals.lightSourcesList, game.gameGlobals.objectList, myPlayer.myBasicInfo, 20, true, true, true, 0.5);
-    }
-
-    createCube(simple3D_Pos_Double(-10,-10,-5), simple3D_Pos_Double(50,50,2),
-            SimpleColor(0,235,0), SimpleColor(0,0,0), false,
-        game.gameGlobals.polygonList, game.gameGlobals.currePosPolygon, game.gameGlobals.lightSourcesList, game.gameGlobals.objectList, myPlayer.myBasicInfo, 20, false, true, true, 0.5);
-
-    createLight(game.gameGlobals.lightSourcesList, game.gameGlobals.polygonList, LightTypes::paralel, Position3D_Double(simple3D_Pos_Double(0,5,5)),
-        100, SimpleColor(255,255,255), 0.2, 1, Vector3D_Double(simple3D_Pos_Double(0,1,0)), Vector3D_Double(simple3D_Pos_Double(0,0,1)), 5, 5);
-
-    createCube(simple3D_Pos_Double(10,2,5), simple3D_Pos_Double(1,1,2),
-            SimpleColor(0,200,0), SimpleColor(0,0,0), false,
-        game.gameGlobals.polygonList, game.gameGlobals.currePosPolygon, game.gameGlobals.lightSourcesList, game.gameGlobals.objectList, myPlayer.myBasicInfo, 20, false, true, true, 0.5);
-
-    createCube(simple3D_Pos_Double(-10,2,5), simple3D_Pos_Double(1,1,2),
-            SimpleColor(200,200,0), SimpleColor(0,0,0), false,
-        game.gameGlobals.polygonList, game.gameGlobals.currePosPolygon, game.gameGlobals.lightSourcesList, game.gameGlobals.objectList, myPlayer.myBasicInfo, 20, false, true, true, 0.5);
+    createBasicCube(game, myPlayer);
 
     while (running) {
-        while (SDL_PollEvent(&event)) {
-            myPlayer.cameraMovementSDL2(event, game.gameGlobals);
-            if (event.type == SDL_QUIT) {
-                running = false;
-            }
-            if (event.type == SDL_KEYDOWN) {
-                if (event.key.keysym.sym == SDLK_ESCAPE) {
-                    running = false;
-                }
-                if (event.key.keysym.sym == SDLK_k) {
-                    game.gameGlobals.lightSourcesList[0].changePos(simple3D_Pos_Double(10,1,5), game.gameGlobals.polygonList,
-                        Vector3D_Double(simple3D_Pos_Double(0,1,0)), Vector3D_Double(simple3D_Pos_Double(0,0,1)));
-                }
-                if (event.key.keysym.sym == SDLK_l) {
-                    game.gameGlobals.lightSourcesList[0].changePos(simple3D_Pos_Double(-10,1,5), game.gameGlobals.polygonList,
-                        Vector3D_Double(simple3D_Pos_Double(0,1,0)), Vector3D_Double(simple3D_Pos_Double(0,0,1)));
-                }
-                if (event.key.keysym.sym == SDLK_m) {
-                    game.gameGlobals.lightSourcesList[0].changePos(simple3D_Pos_Double(-100,1,5), game.gameGlobals.polygonList,
-                        Vector3D_Double(simple3D_Pos_Double(0,1,0)), Vector3D_Double(simple3D_Pos_Double(0,0,1)));
-                }
-            }
+        if (game.turnOffButton()) {
+            running = false;
         }
-        myPlayer.movementSDL2(game.gameGlobals, game.myState);
+        if (game.isKeyPressed(SDLK_ESCAPE)) {
+            running = false;
+        }
+
+        game.playerCameraMovement(myPlayer);
+        game.playerMovement(myPlayer);
         game.drawScene(myPlayer);
     }
-
-    game.end();
 
     return 0;
 }
