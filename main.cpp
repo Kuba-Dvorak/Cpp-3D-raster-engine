@@ -1258,6 +1258,7 @@ public:
         if (myType == LightTypes::pointLike) {
             spehereVec(intezity, lenghtDecay);
         }
+        lightingCycle(allPolygons);
         for (LightSource &oneLight : allLights) {
             oneLight.lightingCycle(allPolygons);
         }
@@ -1757,7 +1758,6 @@ private:
     Vector3D_Double headingVec = Vector3D_Double(simple3D_Pos_Double());
     Vector3D_Double rightVec = Vector3D_Double(simple3D_Pos_Double());
     Vector3D_Double upVec = Vector3D_Double(simple3D_Pos_Double());
-    Position3D_Double myPos = Position3D_Double(simple3D_Pos_Double());
     bool pixelization;
     double detailLevel;
     double sizeRadius;
@@ -1784,6 +1784,7 @@ private:
     }
 
 public:
+    Position3D_Double myPos = Position3D_Double(simple3D_Pos_Double());
     playerFullInfo myBasicInfo;
 
     Player_Double(double speed = 0.5, int screenHeight = 1080, int screenWidth = 1920, int fov = 90, simple3D_Pos_Double beginPos = simple3D_Pos_Double(0,0,0),
@@ -2035,10 +2036,16 @@ public:
     }
 
     bool isKeyPressed(SDL_KeyCode lookingKey) {
-        if (event.type == SDL_KEYDOWN) {
-            if (event.key.keysym.sym == lookingKey) {
-                return true;
-            }
+        if (event.key.keysym.sym == lookingKey) {
+            event.key.keysym.sym = SDLK_DISPLAYSWITCH;
+            return true;
+        }
+        return false;
+    }
+
+    bool isKeyTracking(SDL_KeyCode lookingKey) {
+        if (event.key.keysym.sym == lookingKey) {
+            return true;
         }
         return false;
     }
@@ -2116,34 +2123,13 @@ void setPosBasicLight(gameInfo &scene, int lightIndex, simple3D_Pos_Double newPo
 }
 
 
+simple3D_Pos_Double playerGetPos(Player_Double &player) {
+    return player.myPos.myPos;
+}
+
+
 Player_Double createBasicPlayer(gameInfo &scene, int fov = 90, double senstivity = 0.001, double speed = 0.2, double gravity = 0, bool gravityMode = false, simple3D_Pos_Double beginPos = simple3D_Pos_Double(0,0,0),
     simple3D_Pos_Double colisionBox = simple3D_Pos_Double(4,4,4)) {
     scene.mouseLock(true);
     return Player_Double(speed, scene.height, scene.width, fov, beginPos, scene.blockify, scene.lodLevel, colisionBox, gravity, gravityMode, senstivity);
-}
-
-
-int main(int argc, char* argv[]) {
-    bool running = true;
-
-    gameInfo game = gameInfo(2560, 1440, "Super hra");
-
-    Player_Double myPlayer = createBasicPlayer(game);
-
-    createBasicCube(game, myPlayer);
-
-    while (running) {
-        if (game.turnOffButton()) {
-            running = false;
-        }
-        if (game.isKeyPressed(SDLK_ESCAPE)) {
-            running = false;
-        }
-
-        game.playerCameraMovement(myPlayer);
-        game.playerMovement(myPlayer);
-        game.drawScene(myPlayer);
-    }
-
-    return 0;
 }
